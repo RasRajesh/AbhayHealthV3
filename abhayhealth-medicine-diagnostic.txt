@@ -1,0 +1,307 @@
+﻿ABHAYHEALTH MEDICINE BUTTON DIAGNOSTIC
+Project: C:\Users\ADMIN\AndroidStudioProjects\Abhaay
+Source: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java
+No source files were modified.
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\AbhayHealthApp.kt
+
+Line 22:
+  import com.example.abhayhealth.feature.auth.AuthViewModel
+  import com.example.abhayhealth.feature.home.HomeViewModel
+  import com.example.abhayhealth.feature.me.MeViewModel
+> import com.example.abhayhealth.feature.medicines.MedicinesViewModel
+  import com.example.abhayhealth.feature.onboarding.OnboardingViewModel
+  import com.example.abhayhealth.feature.profile.ProfileViewModel
+  import com.example.abhayhealth.feature.records.ExtractionReviewViewModel
+
+Line 69:
+      val homeViewModel = remember(userPreferencesRepository) { HomeViewModel(userPreferencesRepository) }
+      val recordsViewModel = remember(medicalRecordRepository, authRepository) { RecordsViewModel(medicalRecordRepository, authRepository) }
+      val trendsViewModel = remember { TrendsViewModel() }
+>     val medicinesViewModel = remember { MedicinesViewModel() }
+      val meViewModel = remember(userPreferencesRepository, authRepository, medicalRecordRepository, patientProfileRepository) {
+          MeViewModel(userPreferencesRepository, authRepository, medicalRecordRepository, patientProfileRepository)
+      }
+
+Line 88:
+                  homeViewModel = homeViewModel,
+                  recordsViewModel = recordsViewModel,
+                  trendsViewModel = trendsViewModel,
+>                 medicinesViewModel = medicinesViewModel,
+                  meViewModel = meViewModel
+              )
+          }
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\core\navigation\AbhayHealthNavHost.kt
+
+Line 26:
+  import com.example.abhayhealth.feature.home.HomeViewModel
+  import com.example.abhayhealth.feature.main.MainScreen
+  import com.example.abhayhealth.feature.me.MeViewModel
+> import com.example.abhayhealth.feature.medicines.MedicinesViewModel
+  import com.example.abhayhealth.feature.onboarding.OnboardingScreen
+  import com.example.abhayhealth.feature.onboarding.OnboardingViewModel
+  import com.example.abhayhealth.feature.profile.ProfileEditScreen
+
+Line 49:
+      homeViewModel: HomeViewModel,
+      recordsViewModel: RecordsViewModel,
+      trendsViewModel: TrendsViewModel,
+>     medicinesViewModel: MedicinesViewModel,
+      meViewModel: MeViewModel,
+      modifier: Modifier = Modifier,
+      navController: NavHostController = rememberNavController()
+
+Line 192:
+                  homeViewModel = homeViewModel,
+                  recordsViewModel = recordsViewModel,
+                  trendsViewModel = trendsViewModel,
+>                 medicinesViewModel = medicinesViewModel,
+                  meViewModel = meViewModel,
+                  onEditProfileClick = {
+                      profileViewModel.loadProfileForCurrentUser()
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\core\navigation\BottomNavItem.kt
+
+Line 39:
+          icon = Icons.AutoMirrored.Filled.TrendingUp
+      )
+  
+>     data object Medicines : BottomNavItem(
+          route = NavRoutes.MainTab.MEDICINES,
+          titleRes = R.string.nav_medicines,
+          icon = Icons.Default.MedicalServices
+
+Line 40:
+      )
+  
+      data object Medicines : BottomNavItem(
+>         route = NavRoutes.MainTab.MEDICINES,
+          titleRes = R.string.nav_medicines,
+          icon = Icons.Default.MedicalServices
+      )
+
+Line 41:
+  
+      data object Medicines : BottomNavItem(
+          route = NavRoutes.MainTab.MEDICINES,
+>         titleRes = R.string.nav_medicines,
+          icon = Icons.Default.MedicalServices
+      )
+  
+
+Line 52:
+      )
+  
+      companion object {
+>         val items = listOf(Home, Records, Trends, Medicines, Me)
+      }
+  }
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\core\navigation\NavRoutes.kt
+
+Line 24:
+          const val HOME = "home_tab"
+          const val RECORDS = "records_tab"
+          const val TRENDS = "trends_tab"
+>         const val MEDICINES = "medicines_tab"
+          const val ME = "me_tab"
+      }
+  }
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\core\storage\local\AbhayHealthDatabase.kt
+
+Line 6:
+  /**
+   * Local-First Database Architecture Foundation.
+   * Establishes room database configuration for future longitudinal health records,
+>  * medical documents, prescriptions, and medication schedules.
+   */
+  object AbhayHealthDatabaseConfig {
+      const val DATABASE_NAME = "abhay_health_db"
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\domain\model\Medication.kt
+
+Line 4:
+  package com.example.abhayhealth.domain.model
+  
+  /**
+>  * Domain model representing a medicine item tracked for daily usage and reminders.
+   */
+  data class Medication(
+      val id: String,
+
+Line 6:
+  /**
+   * Domain model representing a medicine item tracked for daily usage and reminders.
+   */
+> data class Medication(
+      val id: String,
+      val name: String,
+      val dosage: String,
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\feature\home\HomeScreen.kt
+
+Line 16:
+  import androidx.compose.material.icons.Icons
+  import androidx.compose.material.icons.filled.Add
+  import androidx.compose.material.icons.filled.Description
+> import androidx.compose.material.icons.filled.Medication
+  import androidx.compose.material.icons.filled.Timeline
+  import androidx.compose.material3.Button
+  import androidx.compose.material3.Card
+
+Line 142:
+                  EmptyStateContent(
+                      title = stringResource(id = R.string.home_empty_meds_title),
+                      description = stringResource(id = R.string.home_empty_meds_desc),
+>                     icon = Icons.Default.Medication
+                  )
+              }
+          }
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\feature\main\MainScreen.kt
+
+Line 25:
+  import com.example.abhayhealth.feature.home.HomeViewModel
+  import com.example.abhayhealth.feature.me.MeScreen
+  import com.example.abhayhealth.feature.me.MeViewModel
+> import com.example.abhayhealth.feature.medicines.MedicinesScreen
+  import com.example.abhayhealth.feature.medicines.MedicinesViewModel
+  import com.example.abhayhealth.feature.records.RecordsScreen
+  import com.example.abhayhealth.feature.records.RecordsViewModel
+
+Line 26:
+  import com.example.abhayhealth.feature.me.MeScreen
+  import com.example.abhayhealth.feature.me.MeViewModel
+  import com.example.abhayhealth.feature.medicines.MedicinesScreen
+> import com.example.abhayhealth.feature.medicines.MedicinesViewModel
+  import com.example.abhayhealth.feature.records.RecordsScreen
+  import com.example.abhayhealth.feature.records.RecordsViewModel
+  import com.example.abhayhealth.feature.trends.TrendsScreen
+
+Line 37:
+      homeViewModel: HomeViewModel,
+      recordsViewModel: RecordsViewModel,
+      trendsViewModel: TrendsViewModel,
+>     medicinesViewModel: MedicinesViewModel,
+      meViewModel: MeViewModel,
+      onEditProfileClick: () -> Unit,
+      onRecordReviewClick: (Long) -> Unit,
+
+Line 107:
+              composable(NavRoutes.MainTab.TRENDS) {
+                  TrendsScreen(viewModel = trendsViewModel)
+              }
+>             composable(NavRoutes.MainTab.MEDICINES) {
+                  MedicinesScreen(viewModel = medicinesViewModel)
+              }
+              composable(NavRoutes.MainTab.ME) {
+
+Line 108:
+                  TrendsScreen(viewModel = trendsViewModel)
+              }
+              composable(NavRoutes.MainTab.MEDICINES) {
+>                 MedicinesScreen(viewModel = medicinesViewModel)
+              }
+              composable(NavRoutes.MainTab.ME) {
+                  MeScreen(
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\feature\medicines\MedicinesScreen.kt
+
+Line 1:
+> package com.example.abhayhealth.feature.medicines
+  
+  import androidx.compose.foundation.layout.Arrangement
+  import androidx.compose.foundation.layout.Column
+
+Line 16:
+  import androidx.compose.material.icons.Icons
+  import androidx.compose.material.icons.filled.Add
+  import androidx.compose.material.icons.filled.Alarm
+> import androidx.compose.material.icons.filled.Medication
+  import androidx.compose.material3.Button
+  import androidx.compose.material3.Card
+  import androidx.compose.material3.CardDefaults
+
+Line 33:
+  import com.example.abhayhealth.core.designsystem.components.EmptyStateContent
+  
+  @Composable
+> fun MedicinesScreen(
+      viewModel: MedicinesViewModel,
+      modifier: Modifier = Modifier
+  ) {
+
+Line 34:
+  
+  @Composable
+  fun MedicinesScreen(
+>     viewModel: MedicinesViewModel,
+      modifier: Modifier = Modifier
+  ) {
+      LazyColumn(
+
+Line 67:
+                  horizontalArrangement = Arrangement.spacedBy(12.dp)
+              ) {
+                  Button(
+>                     onClick = { /* Add Medicine action in future phase */ },
+                      modifier = Modifier
+                          .weight(1f)
+                          .height(48.dp)
+
+Line 107:
+                  EmptyStateContent(
+                      title = stringResource(id = R.string.meds_empty_schedule_title),
+                      description = stringResource(id = R.string.meds_empty_schedule_desc),
+>                     icon = Icons.Default.Medication,
+                      actionLabel = stringResource(id = R.string.meds_btn_add),
+                      onActionClick = { /* Action */ }
+                  )
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\feature\medicines\MedicinesViewModel.kt
+
+Line 1:
+> package com.example.abhayhealth.feature.medicines
+  
+  import androidx.lifecycle.ViewModel
+  
+
+Line 5:
+  
+  import androidx.lifecycle.ViewModel
+  
+> class MedicinesViewModel : ViewModel()
+
+==================================================
+FILE: C:\Users\ADMIN\AndroidStudioProjects\Abhaay\app\src\main\java\com\example\abhayhealth\feature\onboarding\OnboardingScreen.kt
+
+Line 15:
+  import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+  import androidx.compose.material.icons.filled.HealthAndSafety
+  import androidx.compose.material.icons.filled.Lock
+> import androidx.compose.material.icons.filled.Medication
+  import androidx.compose.material3.Button
+  import androidx.compose.material3.Card
+  import androidx.compose.material3.CardDefaults
+
+Line 91:
+              )
+  
+              FeatureItemCard(
+>                 icon = Icons.Default.Medication,
+                  title = stringResource(id = R.string.onboarding_feat_meds_title),
+                  description = stringResource(id = R.string.onboarding_feat_meds_desc)
+              )
+

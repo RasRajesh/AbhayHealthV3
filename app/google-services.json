@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "562150970620",
+    "project_id": "abhayhealth-a8e0d",
+    "storage_bucket": "abhayhealth-a8e0d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:562150970620:android:9f2888c0b875bbd03af379",
+        "android_client_info": {
+          "package_name": "in.abhayhealth.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjb3qRHl2u-A3b_XGS-xZzyNwWMay65GQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
