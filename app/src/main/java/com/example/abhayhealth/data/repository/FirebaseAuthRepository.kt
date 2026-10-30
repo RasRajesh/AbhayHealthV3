@@ -1,13 +1,11 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.data.repository
+package com.example.abhayhealth.data.repository
 
 import android.content.Context
 import android.app.Activity
-import `in`.abhayhealth.app.core.security.SecurityAudit
-import `in`.abhayhealth.app.domain.model.AuthState
-import `in`.abhayhealth.app.domain.model.AuthUser
-import `in`.abhayhealth.app.domain.repository.AuthRepository
+import com.example.abhayhealth.core.security.SecurityAudit
+import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.domain.model.AuthUser
+import com.example.abhayhealth.domain.repository.AuthRepository
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseTooManyRequestsException
@@ -106,10 +104,17 @@ class FirebaseAuthRepository(
 
             override fun onVerificationFailed(e: FirebaseException) {
                 SecurityAudit.logError("FirebaseAuthRepository", "Phone verification failed", e)
-                val errorMessage = when (e) {
-                    is FirebaseTooManyRequestsException -> "Quota exceeded or too many requests. Please try again later."
-                    is FirebaseAuthInvalidCredentialsException -> "Invalid phone number format provided."
-                    else -> e.localizedMessage ?: "Verification failed. Please check your network and try again."
+                val rawMsg = e.localizedMessage ?: ""
+                val errorMessage = when {
+                    e is FirebaseTooManyRequestsException || rawMsg.contains("quota", ignoreCase = true) ->
+                        "SMS Quota exceeded. In Firebase Console > Authentication > Phone, configure a Test Phone Number (e.g. +91 9876543210 / 123456) to test without SMS limits."
+                    e is FirebaseAuthInvalidCredentialsException ->
+                        "Invalid phone number format. Please ensure you enter a valid 10-digit number with country code."
+                    rawMsg.contains("App validation failed", ignoreCase = true) ||
+                    rawMsg.contains("app identifier", ignoreCase = true) ||
+                    rawMsg.contains("not authorized", ignoreCase = true) ->
+                        "Firebase App Validation Failed: The debug SHA-1/SHA-256 fingerprint is not registered in Firebase Console, or Play Integrity is failing on emulator. Add SHA-1 to Firebase Console, or add a Test Phone Number (e.g. +91 9876543210 / 123456) in Firebase Console > Authentication > Sign-in method > Phone."
+                    else -> e.localizedMessage ?: "Verification failed. Please check your network and Firebase settings."
                 }
                 _authState.value = AuthState.Error(errorMessage)
             }
@@ -166,7 +171,14 @@ class FirebaseAuthRepository(
 
             override fun onVerificationFailed(e: FirebaseException) {
                 SecurityAudit.logError("FirebaseAuthRepository", "Resend OTP failed", e)
-                _authState.value = AuthState.Error(e.localizedMessage ?: "Failed to resend OTP.")
+                val rawMsg = e.localizedMessage ?: ""
+                val errorMessage = when {
+                    rawMsg.contains("App validation failed", ignoreCase = true) ||
+                    rawMsg.contains("app identifier", ignoreCase = true) ->
+                        "Firebase App Validation Failed: Please register debug SHA-1 in Firebase Console or use a test phone number."
+                    else -> e.localizedMessage ?: "Failed to resend OTP."
+                }
+                _authState.value = AuthState.Error(errorMessage)
             }
 
             override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) {

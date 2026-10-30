@@ -1,12 +1,10 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.feature.records
+package com.example.abhayhealth.feature.records
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
-import `in`.abhayhealth.app.core.security.SecurityAudit
+import com.example.abhayhealth.core.security.SecurityAudit
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions

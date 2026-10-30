@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.domain.model
+package com.example.abhayhealth.domain.model
 
 /**
  * Domain model representing a medicine item tracked for daily usage and reminders.

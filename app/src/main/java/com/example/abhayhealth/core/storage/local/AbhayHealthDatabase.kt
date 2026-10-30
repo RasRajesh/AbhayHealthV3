@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.core.storage.local
+package com.example.abhayhealth.core.storage.local
 
 /**
  * Local-First Database Architecture Foundation.

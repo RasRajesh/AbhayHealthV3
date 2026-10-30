@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.core.navigation
+package com.example.abhayhealth.core.navigation
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
@@ -8,7 +8,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.graphics.vector.ImageVector
-import `in`.abhayhealth.app.R
+import com.example.abhayhealth.R
 
 /**
  * Bottom navigation bar tabs for the Patient experience.

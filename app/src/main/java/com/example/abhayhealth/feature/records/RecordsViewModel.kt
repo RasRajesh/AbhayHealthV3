@@ -1,16 +1,14 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.feature.records
+package com.example.abhayhealth.feature.records
 
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import `in`.abhayhealth.app.core.common.DefaultDispatcherProvider
-import `in`.abhayhealth.app.core.common.DispatcherProvider
-import `in`.abhayhealth.app.domain.model.AuthState
-import `in`.abhayhealth.app.domain.repository.AuthRepository
-import `in`.abhayhealth.app.feature.medicines.MedicationDao
+import com.example.abhayhealth.core.common.DefaultDispatcherProvider
+import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.domain.repository.AuthRepository
+import com.example.abhayhealth.feature.medicines.MedicationDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow

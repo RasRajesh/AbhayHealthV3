@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.feature.records
+package com.example.abhayhealth.feature.records
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
@@ -54,8 +54,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import `in`.abhayhealth.app.R
-import `in`.abhayhealth.app.domain.model.ParsedMedicalResult
+import com.example.abhayhealth.R
+import com.example.abhayhealth.domain.model.ParsedMedicalResult
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)

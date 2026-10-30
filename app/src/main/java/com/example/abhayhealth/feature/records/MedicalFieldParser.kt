@@ -1,9 +1,7 @@
-package `in`.abhayhealth.app
+package com.example.abhayhealth.feature.records
 
-import `in`.abhayhealth.app.R.feature.records
-
-import `in`.abhayhealth.app.domain.model.ParsedMedicalResult
-import `in`.abhayhealth.app.feature.medicines.PrescriptionMedicationEntity
+import com.example.abhayhealth.domain.model.ParsedMedicalResult
+import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
 import java.util.UUID
 
 object MedicalFieldParser {

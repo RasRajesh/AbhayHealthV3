@@ -1,6 +1,6 @@
-package `in`.abhayhealth.app.domain.repository
+package com.example.abhayhealth.domain.repository
 
-import `in`.abhayhealth.app.domain.model.PatientProfile
+import com.example.abhayhealth.domain.model.PatientProfile
 import kotlinx.coroutines.flow.Flow
 
 /**

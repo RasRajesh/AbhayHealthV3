@@ -1,8 +1,8 @@
-package `in`.abhayhealth.app.feature.onboarding
+package com.example.abhayhealth.feature.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import `in`.abhayhealth.app.domain.usecase.CompleteOnboardingUseCase
+import com.example.abhayhealth.domain.usecase.CompleteOnboardingUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

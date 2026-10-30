@@ -1,10 +1,12 @@
-package `in`.abhayhealth.app.feature.records
+package com.example.abhayhealth.feature.records
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -49,8 +51,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import `in`.abhayhealth.app.R
-import `in`.abhayhealth.app.core.designsystem.components.EmptyStateContent
+import com.example.abhayhealth.R
+import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
+import com.example.abhayhealth.core.designsystem.components.AbhayPrimaryButton
+import com.example.abhayhealth.core.designsystem.components.EmptyStateContent
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -116,41 +120,48 @@ fun RecordsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Column {
-                Text(
-                    text = stringResource(id = R.string.records_title),
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(id = R.string.records_subtitle),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(id = R.string.records_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(id = R.string.records_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                // Official AbhayHealth brand launcher logo
+                AbhayHealthBrandLogo(
+                    size = 46.dp,
+                    elevation = 2.dp
                 )
             }
         }
 
         item {
-            Button(
+            AbhayPrimaryButton(
+                text = stringResource(id = R.string.records_btn_upload),
                 onClick = { documentPickerLauncher.launch(allowedMimeTypes) },
-                enabled = !isImporting,
+                isLoading = isImporting,
+                icon = Icons.Default.Add,
+                testTag = "records_upload_btn",
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
-            ) {
-                if (isImporting) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                } else {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = stringResource(id = R.string.records_btn_upload))
-                }
-            }
+            )
         }
 
         if (errorMessage != null) {
@@ -230,6 +241,7 @@ fun RecordsScreen(
                 value = searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
                 placeholder = { Text("Search records by title or category…") },
+                shape = RoundedCornerShape(14.dp),
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -245,9 +257,11 @@ fun RecordsScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
-                    )
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 ) {
                     EmptyStateContent(
                         title = stringResource(id = R.string.records_empty_title),
@@ -293,9 +307,11 @@ private fun MedicalRecordCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onReviewClick),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -351,7 +367,7 @@ private fun MedicalRecordCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -359,6 +375,7 @@ private fun MedicalRecordCard(
             ) {
                 Button(
                     onClick = onReviewClick,
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(imageVector = Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -367,7 +384,9 @@ private fun MedicalRecordCard(
                 }
 
                 OutlinedButton(
-                    onClick = onOpenClick
+                    onClick = onOpenClick,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                 }

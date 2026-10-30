@@ -1,13 +1,14 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.feature.main
+package com.example.abhayhealth.feature.main
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -18,18 +19,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import `in`.abhayhealth.app.core.navigation.BottomNavItem
-import `in`.abhayhealth.app.core.navigation.NavRoutes
-import `in`.abhayhealth.app.feature.home.HomeScreen
-import `in`.abhayhealth.app.feature.home.HomeViewModel
-import `in`.abhayhealth.app.feature.me.MeScreen
-import `in`.abhayhealth.app.feature.me.MeViewModel
-import `in`.abhayhealth.app.feature.medicines.MedicinesScreen
-import `in`.abhayhealth.app.feature.medicines.MedicinesViewModel
-import `in`.abhayhealth.app.feature.records.RecordsScreen
-import `in`.abhayhealth.app.feature.records.RecordsViewModel
-import `in`.abhayhealth.app.feature.trends.TrendsScreen
-import `in`.abhayhealth.app.feature.trends.TrendsViewModel
+import com.example.abhayhealth.core.navigation.BottomNavItem
+import com.example.abhayhealth.core.navigation.NavRoutes
+import com.example.abhayhealth.feature.home.HomeScreen
+import com.example.abhayhealth.feature.home.HomeViewModel
+import com.example.abhayhealth.feature.me.MeScreen
+import com.example.abhayhealth.feature.me.MeViewModel
+import com.example.abhayhealth.feature.medicines.MedicinesScreen
+import com.example.abhayhealth.feature.medicines.MedicinesViewModel
+import com.example.abhayhealth.feature.records.RecordsScreen
+import com.example.abhayhealth.feature.records.RecordsViewModel
+import com.example.abhayhealth.feature.trends.TrendsScreen
+import com.example.abhayhealth.feature.trends.TrendsViewModel
 
 @Composable
 fun MainScreen(
@@ -50,7 +51,10 @@ fun MainScreen(
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
                 BottomNavItem.items.forEach { item ->
                     val title = stringResource(id = item.titleRes)
                     NavigationBarItem(
@@ -62,6 +66,13 @@ fun MainScreen(
                         },
                         label = { Text(text = title) },
                         selected = currentRoute == item.route,
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
                         onClick = {
                             if (currentRoute != item.route) {
                                 navController.navigate(item.route) {

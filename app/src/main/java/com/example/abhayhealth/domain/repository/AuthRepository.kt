@@ -1,8 +1,8 @@
-package `in`.abhayhealth.app.domain.repository
+package com.example.abhayhealth.domain.repository
 
 import android.app.Activity
-import `in`.abhayhealth.app.domain.model.AuthState
-import `in`.abhayhealth.app.domain.model.AuthUser
+import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.domain.model.AuthUser
 import kotlinx.coroutines.flow.StateFlow
 
 /**

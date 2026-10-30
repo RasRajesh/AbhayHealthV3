@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.core.designsystem.theme
+package com.example.abhayhealth.core.designsystem.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -20,10 +20,10 @@ private val LightColorScheme = lightColorScheme(
     onSecondary = OnSecondaryTeal,
     secondaryContainer = SecondaryContainerSoft,
     onSecondaryContainer = OnSecondaryContainerSoft,
-    tertiary = AmberAttention,
-    onTertiary = OnAmberAttention,
-    tertiaryContainer = AmberContainer,
-    onTertiaryContainer = OnAmberContainer,
+    tertiary = TertiaryCoral,
+    onTertiary = OnTertiaryCoral,
+    tertiaryContainer = TertiaryContainerCoral,
+    onTertiaryContainer = OnTertiaryContainerCoral,
     error = ErrorRed,
     onError = OnErrorRed,
     errorContainer = ErrorContainerRed,
@@ -34,7 +34,8 @@ private val LightColorScheme = lightColorScheme(
     onSurface = OnSurfaceWhite,
     surfaceVariant = SurfaceVariantSoft,
     onSurfaceVariant = OnSurfaceVariantDark,
-    outline = OutlineTeal
+    outline = OutlineTeal,
+    outlineVariant = OutlineVariantTeal
 )
 
 private val DarkColorScheme = darkColorScheme(
@@ -56,13 +57,14 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = OnSurfaceSlateDark,
     surfaceVariant = SurfaceVariantSlateDark,
     onSurfaceVariant = OnSurfaceVariantSlateDark,
-    outline = OutlineSlateDark
+    outline = OutlineSlateDark,
+    outlineVariant = OutlineVariantSlateDark
 )
 
 @Composable
 fun AbhayHealthTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Keep default false to preserve consistent, luxurious AbhayHealth palette
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

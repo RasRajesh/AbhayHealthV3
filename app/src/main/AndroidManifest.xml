@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.fingerprint" android:required="false" />
@@ -27,7 +29,7 @@
         tools:targetApi="35">
 
         <activity
-            android:name="com.example.abhayhealth.MainActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.AbhayHealth"
@@ -49,13 +51,16 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Receiver for Medication Schedule Alarms and Reboot Rescheduling -->
+        <!-- Receiver for Medication Schedule Alarms, Reboot Rescheduling, and Notification Actions -->
         <receiver
-            android:name="com.example.abhayhealth.feature.medicines.MedicationReminderReceiver"
+            android:name=".feature.medicines.MedicationReminderReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="com.example.abhayhealth.ACTION_MEDICATION_REMINDER" />
+                <action android:name="com.example.abhayhealth.ACTION_MARK_TAKEN" />
+                <action android:name="com.example.abhayhealth.ACTION_SNOOZE_REMINDER" />
             </intent-filter>
         </receiver>
 

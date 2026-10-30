@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.domain.repository
+package com.example.abhayhealth.domain.repository
 
 import kotlinx.coroutines.flow.Flow
 
@@ -7,4 +7,6 @@ interface UserPreferencesRepository {
     suspend fun setOnboardingCompleted(completed: Boolean)
     val patientName: Flow<String?>
     suspend fun setPatientName(name: String)
+    val isAiSummaryEnabled: Flow<Boolean>
+    suspend fun setAiSummaryEnabled(enabled: Boolean)
 }

@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.core.navigation
+package com.example.abhayhealth.core.navigation
 
 /**
  * Route definitions for AbhayHealth navigation.

@@ -1,12 +1,10 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.feature.auth
+package com.example.abhayhealth.feature.auth
 
 import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import `in`.abhayhealth.app.domain.model.AuthState
-import `in`.abhayhealth.app.domain.repository.AuthRepository
+import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.domain.repository.AuthRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -1,11 +1,9 @@
-package `in`.abhayhealth.app
+package com.example.abhayhealth.domain.usecase
 
-import `in`.abhayhealth.app.R.domain.usecase
-
-import `in`.abhayhealth.app.domain.model.AuthState
-import `in`.abhayhealth.app.domain.repository.AuthRepository
-import `in`.abhayhealth.app.domain.repository.PatientProfileRepository
-import `in`.abhayhealth.app.domain.repository.UserPreferencesRepository
+import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.domain.repository.AuthRepository
+import com.example.abhayhealth.domain.repository.PatientProfileRepository
+import com.example.abhayhealth.domain.repository.UserPreferencesRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 

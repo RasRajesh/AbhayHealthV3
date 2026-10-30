@@ -1,5 +1,6 @@
-package `in`.abhayhealth.app.feature.trends
+package com.example.abhayhealth.feature.trends
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,8 +39,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import `in`.abhayhealth.app.R
-import `in`.abhayhealth.app.core.designsystem.components.EmptyStateContent
+import com.example.abhayhealth.R
+import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
+import com.example.abhayhealth.core.designsystem.components.EmptyStateContent
 
 @Composable
 fun TrendsScreen(
@@ -69,17 +71,32 @@ fun TrendsScreen(
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = stringResource(id = R.string.trends_title),
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Text(
-            text = stringResource(id = R.string.trends_subtitle),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(id = R.string.trends_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(id = R.string.trends_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            // Official AbhayHealth brand launcher logo
+            AbhayHealthBrandLogo(
+                size = 46.dp,
+                elevation = 2.dp
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
 
         PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
@@ -146,9 +163,11 @@ fun TrendsScreen(
 private fun BiomarkerTrendCard(trend: BiomarkerTrend) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {

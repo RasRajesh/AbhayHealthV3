@@ -1,11 +1,11 @@
-package `in`.abhayhealth.app.data.repository
+package com.example.abhayhealth.data.repository
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import `in`.abhayhealth.app.core.storage.datastore.dataStore
-import `in`.abhayhealth.app.domain.model.PatientProfile
-import `in`.abhayhealth.app.domain.repository.PatientProfileRepository
+import com.example.abhayhealth.core.storage.datastore.dataStore
+import com.example.abhayhealth.domain.model.PatientProfile
+import com.example.abhayhealth.domain.repository.PatientProfileRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first

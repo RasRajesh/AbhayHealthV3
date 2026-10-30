@@ -1,9 +1,7 @@
-package `in`.abhayhealth.app
+package com.example.abhayhealth.feature.records
 
-import `in`.abhayhealth.app.R.feature.records
-
-import `in`.abhayhealth.app.core.common.DefaultDispatcherProvider
-import `in`.abhayhealth.app.core.common.DispatcherProvider
+import com.example.abhayhealth.core.common.DefaultDispatcherProvider
+import com.example.abhayhealth.core.common.DispatcherProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 

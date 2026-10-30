@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.feature.records
+package com.example.abhayhealth.feature.records
 
 import androidx.room.Entity
 import androidx.room.ForeignKey

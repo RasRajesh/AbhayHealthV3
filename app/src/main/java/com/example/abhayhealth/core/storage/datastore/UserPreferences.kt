@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.core.storage.datastore
+package com.example.abhayhealth.core.storage.datastore
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -18,6 +18,7 @@ class UserPreferences(private val context: Context) {
         val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val KEY_USER_ID = stringPreferencesKey("user_id")
         val KEY_PATIENT_NAME = stringPreferencesKey("patient_name")
+        val KEY_AI_SUMMARY_ENABLED = booleanPreferencesKey("ai_summary_enabled")
     }
 
     val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -37,6 +38,16 @@ class UserPreferences(private val context: Context) {
     suspend fun setPatientName(name: String) {
         context.dataStore.edit { preferences ->
             preferences[KEY_PATIENT_NAME] = name
+        }
+    }
+
+    val isAiSummaryEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_AI_SUMMARY_ENABLED] ?: false
+    }
+
+    suspend fun setAiSummaryEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_AI_SUMMARY_ENABLED] = enabled
         }
     }
 }

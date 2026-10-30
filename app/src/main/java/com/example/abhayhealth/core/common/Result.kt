@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.core.common
+package com.example.abhayhealth.core.common
 
 /**
  * A generic class that holds a value with its loading status.

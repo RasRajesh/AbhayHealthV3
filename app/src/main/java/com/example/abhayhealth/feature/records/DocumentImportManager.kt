@@ -1,6 +1,4 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.feature.records
+package com.example.abhayhealth.feature.records
 
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -8,7 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
-import `in`.abhayhealth.app.core.security.SecurityAudit
+import com.example.abhayhealth.core.security.SecurityAudit
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream

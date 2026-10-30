@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.feature.medicines
+package com.example.abhayhealth.feature.medicines
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

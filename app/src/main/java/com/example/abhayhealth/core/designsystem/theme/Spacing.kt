@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.core.designsystem.theme
+package com.example.abhayhealth.core.designsystem.theme
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable

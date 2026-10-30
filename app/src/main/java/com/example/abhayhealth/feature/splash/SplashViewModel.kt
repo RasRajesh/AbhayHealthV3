@@ -1,10 +1,10 @@
-package `in`.abhayhealth.app.feature.splash
+package com.example.abhayhealth.feature.splash
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import `in`.abhayhealth.app.core.navigation.NavRoutes
-import `in`.abhayhealth.app.domain.usecase.GetStartupDestinationUseCase
-import `in`.abhayhealth.app.domain.usecase.StartupDestination
+import com.example.abhayhealth.core.navigation.NavRoutes
+import com.example.abhayhealth.domain.usecase.GetStartupDestinationUseCase
+import com.example.abhayhealth.domain.usecase.StartupDestination
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.feature.records
+package com.example.abhayhealth.feature.records
 
 import androidx.room.Dao
 import androidx.room.Delete

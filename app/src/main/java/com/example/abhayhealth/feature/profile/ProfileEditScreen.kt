@@ -1,10 +1,12 @@
-package `in`.abhayhealth.app.feature.profile
+package com.example.abhayhealth.feature.profile
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,7 +50,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import `in`.abhayhealth.app.R
+import com.example.abhayhealth.R
+import com.example.abhayhealth.core.designsystem.components.AbhayHealthTopAppBar
+import com.example.abhayhealth.core.designsystem.components.AbhayPrimaryButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,16 +88,10 @@ fun ProfileEditScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(id = R.string.profile_edit_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(id = R.string.common_back)
-                        )
-                    }
-                }
+            AbhayHealthTopAppBar(
+                title = stringResource(id = R.string.profile_edit_title),
+                onBackClick = onBackClick,
+                showBrandLogo = true
             )
         },
         modifier = modifier
@@ -356,34 +354,31 @@ fun ProfileEditScreen(
                         viewModel.cancelEditing()
                         onBackClick()
                     },
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier
                         .weight(1f)
-                        .height(50.dp)
+                        .height(52.dp)
                 ) {
-                    Text(text = stringResource(id = R.string.profile_btn_cancel))
+                    Text(
+                        text = stringResource(id = R.string.profile_btn_cancel),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
-                Button(
+                AbhayPrimaryButton(
+                    text = stringResource(id = R.string.profile_btn_save),
                     onClick = {
                         viewModel.saveProfile(onSuccess = onBackClick)
                     },
                     enabled = !isSaving,
+                    isLoading = isSaving,
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .height(50.dp)
-                ) {
-                    if (isSaving) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    } else {
-                        Text(
-                            text = stringResource(id = R.string.profile_btn_save),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
+                        .height(52.dp)
+                )
             }
         }
     }

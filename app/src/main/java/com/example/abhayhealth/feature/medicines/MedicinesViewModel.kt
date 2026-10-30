@@ -1,13 +1,12 @@
-package `in`.abhayhealth.app
+package com.example.abhayhealth.feature.medicines
 
-import `in`.abhayhealth.app.R.feature.medicines
-
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import `in`.abhayhealth.app.core.common.DefaultDispatcherProvider
-import `in`.abhayhealth.app.core.common.DispatcherProvider
-import `in`.abhayhealth.app.domain.model.AuthState
-import `in`.abhayhealth.app.domain.repository.AuthRepository
+import com.example.abhayhealth.core.common.DefaultDispatcherProvider
+import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.domain.repository.AuthRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +26,7 @@ data class PrescriptionMedication(
 class MedicinesViewModel(
     private val medicationDao: MedicationDao? = null,
     private val authRepository: AuthRepository? = null,
+    private val context: Context? = null,
     private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
 ) : ViewModel() {
 
@@ -36,9 +36,15 @@ class MedicinesViewModel(
     private val _showAddDialog = MutableStateFlow(false)
     val showAddDialog: StateFlow<Boolean> = _showAddDialog.asStateFlow()
 
+    private val _showRemindersDialog = MutableStateFlow(false)
+    val showRemindersDialog: StateFlow<Boolean> = _showRemindersDialog.asStateFlow()
+
     private var observeJob: Job? = null
 
     init {
+        context?.let { ctx ->
+            MedicationNotificationHelper.createNotificationChannel(ctx)
+        }
         observeAuthState()
     }
 
@@ -54,6 +60,7 @@ class MedicinesViewModel(
                         observeJob?.cancel()
                         _medications.value = emptyList()
                         _showAddDialog.value = false
+                        _showRemindersDialog.value = false
                     }
                 }
             }
@@ -74,12 +81,28 @@ class MedicinesViewModel(
                         isTaken = entity.isTaken
                     )
                 }
+
+                // Sync alarms with schedule
+                context?.let { ctx ->
+                    for (entity in list) {
+                        MedicationAlarmScheduler.scheduleMedicationAlarm(
+                            context = ctx,
+                            medicationId = entity.id,
+                            name = entity.name,
+                            dosage = entity.dosage,
+                            timeSlot = entity.timeSlot
+                        )
+                    }
+                }
             }
         }
     }
 
     fun openAddDialog() { _showAddDialog.value = true }
     fun closeAddDialog() { _showAddDialog.value = false }
+
+    fun openRemindersDialog() { _showRemindersDialog.value = true }
+    fun closeRemindersDialog() { _showRemindersDialog.value = false }
 
     fun addMedication(name: String, dosage: String, timeSlot: String) {
         if (name.isBlank()) return
@@ -97,6 +120,18 @@ class MedicinesViewModel(
             withContext(dispatcherProvider.io) {
                 dao.insertOrUpdate(entity)
             }
+
+            // Immediately schedule alarm for this newly added medication
+            context?.let { ctx ->
+                MedicationAlarmScheduler.scheduleMedicationAlarm(
+                    context = ctx,
+                    medicationId = entity.id,
+                    name = entity.name,
+                    dosage = entity.dosage,
+                    timeSlot = entity.timeSlot
+                )
+            }
+
             _showAddDialog.value = false
         }
     }
@@ -116,10 +151,33 @@ class MedicinesViewModel(
         val uid = authRepository?.currentUser?.uid ?: return
         val dao = medicationDao ?: return
 
+        // Cancel scheduled alarm when removed
+        context?.let { ctx ->
+            MedicationAlarmScheduler.cancelMedicationAlarm(ctx, id)
+        }
+
         viewModelScope.launch(dispatcherProvider.main) {
             withContext(dispatcherProvider.io) {
                 dao.deleteMedication(id, uid)
             }
+        }
+    }
+
+    fun triggerTestReminder(medicineName: String = "Paracetamol", dosage: String = "500 mg - 1 Tab") {
+        context?.let { ctx ->
+            MedicationNotificationHelper.showMedicationNotification(
+                context = ctx,
+                medicationId = "test_med_${System.currentTimeMillis()}",
+                name = medicineName,
+                dosage = dosage,
+                timeSlot = "TEST ALERT (Now)"
+            )
+        }
+    }
+
+    fun rescheduleAllAlarms() {
+        context?.let { ctx ->
+            MedicationAlarmScheduler.rescheduleAllAlarms(ctx)
         }
     }
 }

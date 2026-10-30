@@ -102,6 +102,29 @@
     <string name="home_empty_trends_title">No health trends available</string>
     <string name="home_empty_trends_desc">Lab values, vital signs, and health trends will automatically appear after adding records.</string>
 
+    <!-- Home Screen AI Features -->
+    <string name="home_ai_toggle_label">AI Health Assistant</string>
+    <string name="home_ai_toggle_desc">Synthesize records, medications &amp; vitals with AI</string>
+    <string name="home_ai_badge_active">AI Active</string>
+    <string name="home_ai_badge_inactive">Standard</string>
+    <string name="home_ai_summary_heading">AI Health Intelligence</string>
+    <string name="home_ai_summary_subheading">Real-time clinical synthesis from your health records</string>
+    <string name="home_ai_score_label">Health Stability Index</string>
+    <string name="home_ai_score_desc">Computed from medication adherence and clinical document status</string>
+    <string name="home_ai_pill_optimal">Optimal Care</string>
+    <string name="home_ai_pill_attention">Attention Advised</string>
+    <string name="home_ai_pill_stable">Stable &amp; Monitored</string>
+    <string name="home_ai_analyzing">Synthesizing health intelligence…</string>
+    <string name="home_ai_refresh">Refresh</string>
+    <string name="home_ai_sec_observations">Key Clinical Insights</string>
+    <string name="home_ai_sec_actions">AI Care Guidance</string>
+    <string name="home_ai_chip_interaction">Medication Safety</string>
+    <string name="home_ai_chip_brief">Doctor Visit Brief</string>
+    <string name="home_ai_chip_explainer">Lab Explainer</string>
+    <string name="home_ai_dialog_close">Close</string>
+    <string name="home_ai_dialog_copy">Copy to Clipboard</string>
+    <string name="home_ai_dialog_copied">Summary copied to clipboard!</string>
+
     <!-- Records Screen Placeholder -->
     <string name="records_title">Medical Records</string>
     <string name="records_subtitle">Your central archive for lab reports, prescriptions, and discharge summaries</string>
@@ -134,6 +157,17 @@
     <string name="meds_empty_history_title">No adherence history</string>
     <string name="meds_empty_history_desc">Daily intake logs will populate your medication adherence history.</string>
 
+    <!-- Medication Reminder System Strings -->
+    <string name="meds_reminders_title">Medication Reminders</string>
+    <string name="meds_reminders_subtitle">Automatic AlarmManager notifications for daily doses</string>
+    <string name="meds_reminders_notif_enabled">Notifications &amp; Alarms Active</string>
+    <string name="meds_reminders_notif_disabled">Notification Permission Required</string>
+    <string name="meds_reminders_btn_grant">Enable Notifications</string>
+    <string name="meds_reminders_btn_test">Send Test Notification</string>
+    <string name="meds_reminders_btn_sync">Sync &amp; Reschedule Alarms</string>
+    <string name="meds_reminders_test_success">Test notification sent! Check your notification shade.</string>
+    <string name="meds_reminders_sync_success">All medication alarms rescheduled successfully.</string>
+
     <!-- Me / Profile Screen -->
     <string name="me_profile_default">Patient Profile</string>
     <string name="me_profile_tagline">Personal Longitudinal Health Record</string>
@@ -165,4 +199,32 @@
     <string name="common_back">Back</string>
     <string name="common_coming_soon">Feature coming in a future phase</string>
     <string name="common_close">Close</string>
+
+    <!-- Health Vitals & Trends Chart Strings -->
+    <string name="vitals_chart_title">Health Trends &amp; Vitals</string>
+    <string name="vitals_chart_subtitle">Interactive visualization from local Room database</string>
+    <string name="vitals_metric_bp">Blood Pressure</string>
+    <string name="vitals_metric_weight">Weight</string>
+    <string name="vitals_btn_log">+ Log Vital</string>
+    <string name="vitals_latest">Latest</string>
+    <string name="vitals_avg">7-Day Avg</string>
+    <string name="vitals_range">Min – Max</string>
+    <string name="vitals_unit_bp">mmHg</string>
+    <string name="vitals_unit_weight">kg</string>
+    <string name="vitals_legend_systolic">Systolic</string>
+    <string name="vitals_legend_diastolic">Diastolic</string>
+    <string name="vitals_legend_weight">Weight (kg)</string>
+    <string name="vitals_ref_bp">Standard Guideline: &lt;120 / &lt;80 mmHg</string>
+    <string name="vitals_ref_weight">Stable Healthy Target Trend</string>
+    <string name="vitals_dialog_title">Log Vital Measurement</string>
+    <string name="vitals_dialog_systolic">Systolic (mmHg)</string>
+    <string name="vitals_dialog_diastolic">Diastolic (mmHg)</string>
+    <string name="vitals_dialog_weight">Weight (kg)</string>
+    <string name="vitals_dialog_notes">Notes / Context (Optional)</string>
+    <string name="vitals_dialog_save">Save to Database</string>
+    <string name="vitals_dialog_cancel">Cancel</string>
+    <string name="vitals_status_optimal">Optimal</string>
+    <string name="vitals_status_normal">Normal</string>
+    <string name="vitals_status_elevated">Elevated</string>
+    <string name="vitals_empty_chart">No readings recorded yet. Tap \'+ Log Vital\' to add your first measurement.</string>
 </resources>

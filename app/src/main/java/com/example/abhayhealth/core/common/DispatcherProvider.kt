@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.core.common
+package com.example.abhayhealth.core.common
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers

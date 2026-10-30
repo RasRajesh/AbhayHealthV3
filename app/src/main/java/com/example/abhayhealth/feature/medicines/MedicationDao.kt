@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.feature.medicines
+package com.example.abhayhealth.feature.medicines
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -26,4 +26,13 @@ interface MedicationDao {
 
     @Query("DELETE FROM prescription_medications WHERE id = :id AND accountUid = :accountUid")
     fun deleteMedication(id: String, accountUid: String): Int
+
+    @Query("SELECT * FROM prescription_medications")
+    fun getAllMedicationsSync(): List<PrescriptionMedicationEntity>
+
+    @Query("SELECT * FROM prescription_medications WHERE id = :id")
+    fun getMedicationByIdSync(id: String): PrescriptionMedicationEntity?
+
+    @Query("UPDATE prescription_medications SET isTaken = 1 WHERE id = :id")
+    fun markDoseTaken(id: String): Int
 }

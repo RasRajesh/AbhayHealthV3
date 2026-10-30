@@ -1,4 +1,4 @@
-package `in`.abhayhealth.app.domain.model
+package com.example.abhayhealth.domain.model
 
 import java.util.UUID
 

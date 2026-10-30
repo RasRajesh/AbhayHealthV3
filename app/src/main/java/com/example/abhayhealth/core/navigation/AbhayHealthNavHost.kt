@@ -1,6 +1,4 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.core.navigation
+package com.example.abhayhealth.core.navigation
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,26 +15,26 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import `in`.abhayhealth.app.domain.model.AuthState
-import `in`.abhayhealth.app.feature.auth.AuthViewModel
-import `in`.abhayhealth.app.feature.auth.EnterPhoneScreen
-import `in`.abhayhealth.app.feature.auth.VerifyOtpScreen
-import `in`.abhayhealth.app.feature.auth.WelcomeScreen
-import `in`.abhayhealth.app.feature.home.HomeViewModel
-import `in`.abhayhealth.app.feature.main.MainScreen
-import `in`.abhayhealth.app.feature.me.MeViewModel
-import `in`.abhayhealth.app.feature.medicines.MedicinesViewModel
-import `in`.abhayhealth.app.feature.onboarding.OnboardingScreen
-import `in`.abhayhealth.app.feature.onboarding.OnboardingViewModel
-import `in`.abhayhealth.app.feature.profile.ProfileEditScreen
-import `in`.abhayhealth.app.feature.profile.ProfileSetupScreen
-import `in`.abhayhealth.app.feature.profile.ProfileViewModel
-import `in`.abhayhealth.app.feature.records.ExtractionReviewScreen
-import `in`.abhayhealth.app.feature.records.ExtractionReviewViewModel
-import `in`.abhayhealth.app.feature.records.RecordsViewModel
-import `in`.abhayhealth.app.feature.splash.SplashScreen
-import `in`.abhayhealth.app.feature.splash.SplashViewModel
-import `in`.abhayhealth.app.feature.trends.TrendsViewModel
+import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.feature.auth.AuthViewModel
+import com.example.abhayhealth.feature.auth.EnterPhoneScreen
+import com.example.abhayhealth.feature.auth.VerifyOtpScreen
+import com.example.abhayhealth.feature.auth.WelcomeScreen
+import com.example.abhayhealth.feature.home.HomeViewModel
+import com.example.abhayhealth.feature.main.MainScreen
+import com.example.abhayhealth.feature.me.MeViewModel
+import com.example.abhayhealth.feature.medicines.MedicinesViewModel
+import com.example.abhayhealth.feature.onboarding.OnboardingScreen
+import com.example.abhayhealth.feature.onboarding.OnboardingViewModel
+import com.example.abhayhealth.feature.profile.ProfileEditScreen
+import com.example.abhayhealth.feature.profile.ProfileSetupScreen
+import com.example.abhayhealth.feature.profile.ProfileViewModel
+import com.example.abhayhealth.feature.records.ExtractionReviewScreen
+import com.example.abhayhealth.feature.records.ExtractionReviewViewModel
+import com.example.abhayhealth.feature.records.RecordsViewModel
+import com.example.abhayhealth.feature.splash.SplashScreen
+import com.example.abhayhealth.feature.splash.SplashViewModel
+import com.example.abhayhealth.feature.trends.TrendsViewModel
 
 @Composable
 fun AbhayHealthNavHost(

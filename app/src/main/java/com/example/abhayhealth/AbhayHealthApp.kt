@@ -1,6 +1,4 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R
+package com.example.abhayhealth
 
 import android.content.Context
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,26 +8,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import `in`.abhayhealth.app.core.designsystem.theme.AbhayHealthTheme
-import `in`.abhayhealth.app.R.core.navigation.AbhayHealthNavHost
-import `in`.abhayhealth.app.core.storage.datastore.UserPreferences
-import `in`.abhayhealth.app.data.repository.FirebaseAuthRepository
-import `in`.abhayhealth.app.data.repository.PatientProfileRepositoryImpl
-import `in`.abhayhealth.app.data.repository.UserPreferencesRepositoryImpl
-import `in`.abhayhealth.app.domain.usecase.CompleteOnboardingUseCase
-import `in`.abhayhealth.app.domain.usecase.GetStartupDestinationUseCase
-import `in`.abhayhealth.app.feature.auth.AuthViewModel
-import `in`.abhayhealth.app.feature.home.HomeViewModel
-import `in`.abhayhealth.app.feature.me.MeViewModel
-import `in`.abhayhealth.app.feature.medicines.MedicinesViewModel
-import `in`.abhayhealth.app.feature.onboarding.OnboardingViewModel
-import `in`.abhayhealth.app.feature.profile.ProfileViewModel
-import `in`.abhayhealth.app.feature.records.ExtractionReviewViewModel
-import `in`.abhayhealth.app.feature.records.MedicalRecordDatabase
-import `in`.abhayhealth.app.feature.records.MedicalRecordRepository
-import `in`.abhayhealth.app.feature.records.RecordsViewModel
-import `in`.abhayhealth.app.feature.splash.SplashViewModel
-import `in`.abhayhealth.app.feature.trends.TrendsViewModel
+import com.example.abhayhealth.core.designsystem.theme.AbhayHealthTheme
+import com.example.abhayhealth.core.navigation.AbhayHealthNavHost
+import com.example.abhayhealth.core.storage.datastore.UserPreferences
+import com.example.abhayhealth.data.repository.FirebaseAuthRepository
+import com.example.abhayhealth.data.repository.PatientProfileRepositoryImpl
+import com.example.abhayhealth.data.repository.UserPreferencesRepositoryImpl
+import com.example.abhayhealth.domain.usecase.CompleteOnboardingUseCase
+import com.example.abhayhealth.domain.usecase.GetStartupDestinationUseCase
+import com.example.abhayhealth.feature.auth.AuthViewModel
+import com.example.abhayhealth.feature.home.HomeViewModel
+import com.example.abhayhealth.feature.me.MeViewModel
+import com.example.abhayhealth.feature.medicines.MedicinesViewModel
+import com.example.abhayhealth.feature.onboarding.OnboardingViewModel
+import com.example.abhayhealth.feature.profile.ProfileViewModel
+import com.example.abhayhealth.feature.records.ExtractionReviewViewModel
+import com.example.abhayhealth.feature.records.MedicalRecordDatabase
+import com.example.abhayhealth.feature.records.MedicalRecordRepository
+import com.example.abhayhealth.feature.records.RecordsViewModel
+import com.example.abhayhealth.feature.splash.SplashViewModel
+import com.example.abhayhealth.feature.trends.TrendsViewModel
+import com.example.abhayhealth.feature.vitals.VitalReadingRepository
 
 @Composable
 fun AbhayHealthApp(
@@ -48,6 +47,9 @@ fun AbhayHealthApp(
             medicalRecordDatabase.extractedInfoDao()
         )
     }
+    val vitalReadingRepository = remember(medicalRecordDatabase) {
+        VitalReadingRepository(medicalRecordDatabase.vitalReadingDao())
+    }
 
     val getStartupDestinationUseCase = remember(userPreferencesRepository, authRepository, patientProfileRepository) {
         GetStartupDestinationUseCase(userPreferencesRepository, authRepository, patientProfileRepository)
@@ -65,13 +67,22 @@ fun AbhayHealthApp(
     val extractionReviewViewModel = remember(medicalRecordRepository, authRepository) {
         ExtractionReviewViewModel(medicalRecordRepository, authRepository)
     }
-    val homeViewModel = remember(userPreferencesRepository) { HomeViewModel(userPreferencesRepository) }
+    val homeViewModel = remember(userPreferencesRepository, authRepository, medicalRecordRepository, medicalRecordDatabase, patientProfileRepository, vitalReadingRepository) {
+        HomeViewModel(
+            userPreferencesRepository = userPreferencesRepository,
+            authRepository = authRepository,
+            medicalRecordRepository = medicalRecordRepository,
+            medicationDao = medicalRecordDatabase.medicationDao(),
+            patientProfileRepository = patientProfileRepository,
+            vitalReadingRepository = vitalReadingRepository
+        )
+    }
     val recordsViewModel = remember(medicalRecordRepository, authRepository, medicalRecordDatabase) {
         RecordsViewModel(medicalRecordRepository, authRepository, medicationDao = medicalRecordDatabase.medicationDao())
     }
     val trendsViewModel = remember(medicalRecordRepository, authRepository) { TrendsViewModel(medicalRecordRepository, authRepository) }
-    val medicinesViewModel = remember(medicalRecordDatabase, authRepository) {
-        MedicinesViewModel(medicalRecordDatabase.medicationDao(), authRepository)
+    val medicinesViewModel = remember(medicalRecordDatabase, authRepository, context) {
+        MedicinesViewModel(medicalRecordDatabase.medicationDao(), authRepository, context.applicationContext)
     }
     val meViewModel = remember(userPreferencesRepository, authRepository, medicalRecordRepository, patientProfileRepository) {
         MeViewModel(userPreferencesRepository, authRepository, medicalRecordRepository, patientProfileRepository)

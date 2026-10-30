@@ -1,6 +1,4 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R
+package com.example.abhayhealth
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

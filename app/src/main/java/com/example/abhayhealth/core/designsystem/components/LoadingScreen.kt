@@ -1,6 +1,4 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.core.designsystem.components
+package com.example.abhayhealth.core.designsystem.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize

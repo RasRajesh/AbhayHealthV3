@@ -1,7 +1,7 @@
-package `in`.abhayhealth.app.data.repository
+package com.example.abhayhealth.data.repository
 
-import `in`.abhayhealth.app.core.storage.datastore.UserPreferences
-import `in`.abhayhealth.app.domain.repository.UserPreferencesRepository
+import com.example.abhayhealth.core.storage.datastore.UserPreferences
+import com.example.abhayhealth.domain.repository.UserPreferencesRepository
 import kotlinx.coroutines.flow.Flow
 
 class UserPreferencesRepositoryImpl(
@@ -18,5 +18,11 @@ class UserPreferencesRepositoryImpl(
 
     override suspend fun setPatientName(name: String) {
         userPreferences.setPatientName(name)
+    }
+
+    override val isAiSummaryEnabled: Flow<Boolean> = userPreferences.isAiSummaryEnabled
+
+    override suspend fun setAiSummaryEnabled(enabled: Boolean) {
+        userPreferences.setAiSummaryEnabled(enabled)
     }
 }

@@ -1,6 +1,6 @@
-package `in`.abhayhealth.app.domain.usecase
+package com.example.abhayhealth.domain.usecase
 
-import `in`.abhayhealth.app.domain.repository.UserPreferencesRepository
+import com.example.abhayhealth.domain.repository.UserPreferencesRepository
 
 class CompleteOnboardingUseCase(
     private val repository: UserPreferencesRepository

@@ -1,16 +1,14 @@
-package `in`.abhayhealth.app
-
-import `in`.abhayhealth.app.R.feature.trends
+package com.example.abhayhealth.feature.trends
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import `in`.abhayhealth.app.core.common.DefaultDispatcherProvider
-import `in`.abhayhealth.app.core.common.DispatcherProvider
-import `in`.abhayhealth.app.domain.model.AuthState
-import `in`.abhayhealth.app.domain.repository.AuthRepository
-import `in`.abhayhealth.app.feature.records.ExtractedMedicalInfo
-import `in`.abhayhealth.app.feature.records.MedicalFieldParser
-import `in`.abhayhealth.app.feature.records.MedicalRecordRepository
+import com.example.abhayhealth.core.common.DefaultDispatcherProvider
+import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.domain.repository.AuthRepository
+import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
+import com.example.abhayhealth.feature.records.MedicalFieldParser
+import com.example.abhayhealth.feature.records.MedicalRecordRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
