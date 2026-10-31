@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +43,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.testTag
+import com.example.abhayhealth.feature.records.export.ExportReportDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -72,6 +75,10 @@ fun RecordsScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val infoMessage by viewModel.infoMessage.collectAsState()
     val recordToDelete by viewModel.recordToDelete.collectAsState()
+    val exportState by viewModel.exportState.collectAsState()
+    val showExportDialog by viewModel.showExportDialog.collectAsState()
+    val medicationCount by viewModel.medicationCount.collectAsState()
+    val vitalCount by viewModel.vitalCount.collectAsState()
 
     val documentPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -87,6 +94,19 @@ fun RecordsScreen(
         "image/png",
         "image/webp"
     )
+
+    if (showExportDialog) {
+        ExportReportDialog(
+            state = exportState,
+            recordCount = records.size,
+            medicationCount = medicationCount,
+            vitalCount = vitalCount,
+            onDismiss = { viewModel.dismissExportDialog() },
+            onShareClick = { viewModel.exportAndShareReport(context) },
+            onViewClick = { viewModel.exportAndViewReport(context) },
+            onPrintClick = { viewModel.exportAndPrintReport(context) }
+        )
+    }
 
     if (recordToDelete != null) {
         AlertDialog(
@@ -151,17 +171,47 @@ fun RecordsScreen(
         }
 
         item {
-            AbhayPrimaryButton(
-                text = stringResource(id = R.string.records_btn_upload),
-                onClick = { documentPickerLauncher.launch(allowedMimeTypes) },
-                isLoading = isImporting,
-                icon = Icons.Default.Add,
-                testTag = "records_upload_btn",
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                AbhayPrimaryButton(
+                    text = stringResource(id = R.string.records_btn_upload),
+                    onClick = { documentPickerLauncher.launch(allowedMimeTypes) },
+                    isLoading = isImporting,
+                    icon = Icons.Default.Add,
+                    testTag = "records_upload_btn",
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .height(52.dp)
+                )
+
+                OutlinedButton(
+                    onClick = { viewModel.openExportDialog() },
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier
+                        .weight(0.9f)
+                        .height(52.dp)
+                        .testTag("records_export_pdf_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PictureAsPdf,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Export PDF",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
 
         if (errorMessage != null) {

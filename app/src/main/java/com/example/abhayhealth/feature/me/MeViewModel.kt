@@ -8,8 +8,13 @@ import com.example.abhayhealth.core.common.DispatcherProvider
 import com.example.abhayhealth.domain.repository.AuthRepository
 import com.example.abhayhealth.domain.repository.PatientProfileRepository
 import com.example.abhayhealth.domain.repository.UserPreferencesRepository
+import com.example.abhayhealth.feature.medicines.MedicationDao
 import com.example.abhayhealth.feature.records.DocumentImportManager
 import com.example.abhayhealth.feature.records.MedicalRecordRepository
+import com.example.abhayhealth.feature.records.export.ExportReportState
+import com.example.abhayhealth.feature.records.export.MedicalReportExportManager
+import com.example.abhayhealth.feature.vitals.VitalReadingRepository
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +28,9 @@ class MeViewModel(
     private val authRepository: AuthRepository,
     private val medicalRecordRepository: MedicalRecordRepository,
     private val patientProfileRepository: PatientProfileRepository,
-    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
+    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider(),
+    private val medicationDao: MedicationDao? = null,
+    private val vitalReadingRepository: VitalReadingRepository? = null
 ) : ViewModel() {
 
     val patientName: StateFlow<String?> = userPreferencesRepository.patientName.stateIn(
@@ -37,6 +44,103 @@ class MeViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _exportState = MutableStateFlow<ExportReportState>(ExportReportState.Idle)
+    val exportState: StateFlow<ExportReportState> = _exportState.asStateFlow()
+
+    private val _showExportDialog = MutableStateFlow(false)
+    val showExportDialog: StateFlow<Boolean> = _showExportDialog.asStateFlow()
+
+    private val _recordCount = MutableStateFlow(0)
+    val recordCount: StateFlow<Int> = _recordCount.asStateFlow()
+
+    private val _medicationCount = MutableStateFlow(0)
+    val medicationCount: StateFlow<Int> = _medicationCount.asStateFlow()
+
+    private val _vitalCount = MutableStateFlow(0)
+    val vitalCount: StateFlow<Int> = _vitalCount.asStateFlow()
+
+    fun openExportDialog() {
+        val uid = authRepository.currentUser?.uid ?: return
+        refreshCounts(uid)
+        _exportState.value = ExportReportState.Idle
+        _showExportDialog.value = true
+    }
+
+    fun dismissExportDialog() {
+        _showExportDialog.value = false
+        _exportState.value = ExportReportState.Idle
+    }
+
+    private fun refreshCounts(uid: String) {
+        viewModelScope.launch(dispatcherProvider.main) {
+            try {
+                medicalRecordRepository.getRecords(uid).first().let {
+                    _recordCount.value = it.size
+                }
+                medicationDao?.getMedicationsByAccount(uid)?.first()?.let {
+                    _medicationCount.value = it.size
+                }
+                vitalReadingRepository?.getAllReadings(uid)?.first()?.let {
+                    _vitalCount.value = it.size
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun exportAndShareReport(context: Context) {
+        performExport(context) { manager, file, patientName ->
+            manager.shareReport(file, patientName)
+        }
+    }
+
+    fun exportAndViewReport(context: Context) {
+        performExport(context) { manager, file, _ ->
+            manager.viewReport(file)
+        }
+    }
+
+    fun exportAndPrintReport(context: Context) {
+        performExport(context) { manager, file, _ ->
+            manager.printReport(file)
+        }
+    }
+
+    private fun performExport(context: Context, onReady: (MedicalReportExportManager, File, String) -> Unit) {
+        val uid = authRepository.currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            _exportState.value = ExportReportState.Error("Please sign in to export medical history.")
+            return
+        }
+
+        val medDao = medicationDao
+        val vitalRepo = vitalReadingRepository
+        if (medDao == null || vitalRepo == null) {
+            _exportState.value = ExportReportState.Error("Database services unavailable.")
+            return
+        }
+
+        viewModelScope.launch(dispatcherProvider.main) {
+            _exportState.value = ExportReportState.Generating
+            try {
+                val exportManager = MedicalReportExportManager(
+                    context = context.applicationContext,
+                    medicalRecordRepository = medicalRecordRepository,
+                    medicationDao = medDao,
+                    vitalReadingRepository = vitalRepo,
+                    patientProfileRepository = patientProfileRepository
+                )
+                val file = exportManager.generateReport(uid)
+                val profile = try { patientProfileRepository.getProfile(uid).first() } catch (_: Exception) { null }
+                val patientName = profile?.fullName ?: "Patient"
+
+                _exportState.value = ExportReportState.Success(file)
+                onReady(exportManager, file, patientName)
+            } catch (e: Exception) {
+                _exportState.value = ExportReportState.Error(e.message ?: "Failed to generate PDF report.")
+            }
+        }
+    }
 
     fun deleteAccountAndAllData(context: Context, onDeleted: () -> Unit) {
         if (_isDeleting.value) return

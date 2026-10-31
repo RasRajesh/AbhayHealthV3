@@ -77,15 +77,28 @@ fun AbhayHealthApp(
             vitalReadingRepository = vitalReadingRepository
         )
     }
-    val recordsViewModel = remember(medicalRecordRepository, authRepository, medicalRecordDatabase) {
-        RecordsViewModel(medicalRecordRepository, authRepository, medicationDao = medicalRecordDatabase.medicationDao())
+    val recordsViewModel = remember(medicalRecordRepository, authRepository, medicalRecordDatabase, vitalReadingRepository, patientProfileRepository) {
+        RecordsViewModel(
+            medicalRecordRepository = medicalRecordRepository,
+            authRepository = authRepository,
+            medicationDao = medicalRecordDatabase.medicationDao(),
+            vitalReadingRepository = vitalReadingRepository,
+            patientProfileRepository = patientProfileRepository
+        )
     }
     val trendsViewModel = remember(medicalRecordRepository, authRepository) { TrendsViewModel(medicalRecordRepository, authRepository) }
     val medicinesViewModel = remember(medicalRecordDatabase, authRepository, context) {
         MedicinesViewModel(medicalRecordDatabase.medicationDao(), authRepository, context.applicationContext)
     }
-    val meViewModel = remember(userPreferencesRepository, authRepository, medicalRecordRepository, patientProfileRepository) {
-        MeViewModel(userPreferencesRepository, authRepository, medicalRecordRepository, patientProfileRepository)
+    val meViewModel = remember(userPreferencesRepository, authRepository, medicalRecordRepository, patientProfileRepository, medicalRecordDatabase, vitalReadingRepository) {
+        MeViewModel(
+            userPreferencesRepository = userPreferencesRepository,
+            authRepository = authRepository,
+            medicalRecordRepository = medicalRecordRepository,
+            patientProfileRepository = patientProfileRepository,
+            medicationDao = medicalRecordDatabase.medicationDao(),
+            vitalReadingRepository = vitalReadingRepository
+        )
     }
 
     AbhayHealthTheme {

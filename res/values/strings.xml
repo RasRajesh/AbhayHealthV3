@@ -160,4 +160,18 @@
     <string name="common_back">Back</string>
     <string name="common_coming_soon">Feature coming in a future phase</string>
     <string name="common_close">Close</string>
+
+    <!-- PDF Report Export Strings -->
+    <string name="export_report_title">Export Medical PDF Report</string>
+    <string name="export_report_subtitle">Clinical summary &amp; medication schedule for healthcare providers</string>
+    <string name="export_report_card_desc">Generate a comprehensive, printable PDF report containing your active prescriptions, medical history, lab values, and vitals.</string>
+    <string name="export_report_btn_generate">Generate &amp; Share PDF</string>
+    <string name="export_report_btn_share">Share with Healthcare Provider</string>
+    <string name="export_report_btn_view">View PDF Report</string>
+    <string name="export_report_btn_print">Print Document</string>
+    <string name="export_report_generating">Generating clinical medical report PDF…</string>
+    <string name="export_report_success">Medical report generated successfully!</string>
+    <string name="export_report_error">Failed to generate PDF report. Please try again.</string>
+    <string name="export_report_dialog_header">Doctor Clinical Summary Report</string>
+    <string name="export_report_dialog_body">This generates an official AbhayHealth Medical Summary including your profile, active prescriptions, recent vitals, and diagnostic lab results formatted for physician review.</string>
 </resources>

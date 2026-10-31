@@ -60,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.abhayhealth.R
 import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
+import com.example.abhayhealth.feature.records.export.ExportReportDialog
 
 @Composable
 fun MeScreen(
@@ -72,9 +73,28 @@ fun MeScreen(
     val patientName by viewModel.patientName.collectAsState()
     val isDeleting by viewModel.isDeleting.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val exportState by viewModel.exportState.collectAsState()
+    val showExportDialog by viewModel.showExportDialog.collectAsState()
+    val recordCount by viewModel.recordCount.collectAsState()
+    val medicationCount by viewModel.medicationCount.collectAsState()
+    val vitalCount by viewModel.vitalCount.collectAsState()
+
     val displayName = if (!patientName.isNull_or_blank()) patientName!! else stringResource(id = R.string.me_profile_default)
 
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
+
+    if (showExportDialog) {
+        ExportReportDialog(
+            state = exportState,
+            recordCount = recordCount,
+            medicationCount = medicationCount,
+            vitalCount = vitalCount,
+            onDismiss = { viewModel.dismissExportDialog() },
+            onShareClick = { viewModel.exportAndShareReport(context) },
+            onViewClick = { viewModel.exportAndViewReport(context) },
+            onPrintClick = { viewModel.exportAndPrintReport(context) }
+        )
+    }
 
     if (showDeleteAccountDialog) {
         AlertDialog(
@@ -291,7 +311,7 @@ fun MeScreen(
                         icon = Icons.Default.IosShare,
                         title = stringResource(id = R.string.me_item_export_title),
                         subtitle = stringResource(id = R.string.me_item_export_sub),
-                        onClick = { /* Future */ }
+                        onClick = { viewModel.openExportDialog() }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     ProfileMenuItem(
