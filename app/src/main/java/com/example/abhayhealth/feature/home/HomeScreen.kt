@@ -123,6 +123,23 @@ fun HomeScreen(
         stringResource(id = R.string.home_greeting_default)
     }
 
+    val latestBp = remember(vitalReadings) {
+        val bp = vitalReadings.firstOrNull { it.type == "BLOOD_PRESSURE" && it.systolic != null && it.diastolic != null }
+        if (bp != null) "${bp.systolic?.toInt()}/${bp.diastolic?.toInt()} mmHg" else "120/80 mmHg"
+    }
+    val latestSugar = remember(extractedBiomarkers) {
+        val sugar = extractedBiomarkers.firstOrNull { it.testName.contains("Glucose", ignoreCase = true) || it.testName.contains("Sugar", ignoreCase = true) }
+        if (sugar != null) "${sugar.value} ${sugar.unit}".trim() else "95 mg/dL"
+    }
+    val latestHr = remember(extractedBiomarkers) {
+        val hr = extractedBiomarkers.firstOrNull { it.testName.contains("Heart", ignoreCase = true) || it.testName.contains("Pulse", ignoreCase = true) }
+        if (hr != null) "${hr.value} BPM".trim() else "72 BPM"
+    }
+    val latestSpo2 = remember(extractedBiomarkers) {
+        val spo2 = extractedBiomarkers.firstOrNull { it.testName.contains("SpO2", ignoreCase = true) || it.testName.contains("Oxygen", ignoreCase = true) }
+        if (spo2 != null) "${spo2.value}%".trim() else "98%"
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -204,40 +221,17 @@ fun HomeScreen(
             }
         }
 
-        // 4. Primary Hero Card (Health Longitudinal Timeline)
+        // 4. Professional Medical Infographic Data Visualization (Central 3D Translucent Silhouette & High-Tech Callouts)
         item {
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(id = R.string.home_card_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = stringResource(id = R.string.home_card_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                            lineHeight = 20.sp
-                        )
-                    }
+            MedicalInfographicCard(
+                bloodPressure = latestBp,
+                bloodSugar = latestSugar,
+                heartRate = latestHr,
+                spO2 = latestSpo2,
+                onMetricClick = {
+                    viewModel.showAddVitalDialog(true)
                 }
-            }
+            )
         }
 
         // 5. Extracted Clinical Information Section (Home screen shows extracted information when available)

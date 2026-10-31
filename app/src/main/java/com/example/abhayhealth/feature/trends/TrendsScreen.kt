@@ -38,6 +38,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,6 +68,8 @@ fun TrendsScreen(
     val labTrends by viewModel.labTrends.collectAsState()
     val vitalsTrends by viewModel.vitalsTrends.collectAsState()
     val allTrends by viewModel.biomarkerTrends.collectAsState()
+    val dualComparison by viewModel.dualComparison.collectAsState()
+    val availableMetrics by viewModel.availableComparisonMetrics.collectAsState()
     val symptoms by viewModel.symptoms.collectAsState()
     val showAddSymptomDialog by viewModel.showAddSymptomDialog.collectAsState()
 
@@ -74,6 +77,7 @@ fun TrendsScreen(
     val tabTitles = listOf(
         stringResource(id = R.string.trends_tab_labs),
         stringResource(id = R.string.trends_tab_vitals),
+        stringResource(id = R.string.trends_tab_compare),
         stringResource(id = R.string.trends_tab_symptoms),
         stringResource(id = R.string.trends_tab_adherence)
     )
@@ -127,12 +131,16 @@ fun TrendsScreen(
         }
         Spacer(modifier = Modifier.height(16.dp))
 
-        PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
+        ScrollableTabRow(
+            selectedTabIndex = selectedTabIndex,
+            edgePadding = 0.dp,
+            divider = {}
+        ) {
             tabTitles.forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTabIndex == index,
                     onClick = { selectedTabIndex = index },
-                    text = { Text(text = title) }
+                    text = { Text(text = title, maxLines = 1) }
                 )
             }
         }
@@ -141,6 +149,22 @@ fun TrendsScreen(
 
         when (selectedTabIndex) {
             2 -> {
+                // Dual Metric Comparison Tab (e.g. Weight vs Blood Pressure)
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        DualMetricComparisonCard(
+                            comparison = dualComparison,
+                            availableMetrics = availableMetrics,
+                            onSelectMetric1 = { viewModel.setComparisonMetric1(it) },
+                            onSelectMetric2 = { viewModel.setComparisonMetric2(it) }
+                        )
+                    }
+                }
+            }
+            3 -> {
                 // Symptom Tracking & Frequency Tab
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 24.dp),
@@ -155,7 +179,7 @@ fun TrendsScreen(
                     }
                 }
             }
-            3 -> {
+            4 -> {
                 // Adherence Tab
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 16.dp),

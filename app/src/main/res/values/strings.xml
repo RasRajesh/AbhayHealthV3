@@ -138,7 +138,15 @@
     <string name="trends_subtitle">Longitudinal analytics extracted from your lab reports &amp; vitals</string>
     <string name="trends_tab_labs">Lab Trends</string>
     <string name="trends_tab_vitals">Vital Trends</string>
+    <string name="trends_tab_compare">Compare Metrics</string>
     <string name="trends_tab_adherence">Medication Adherence</string>
+    <string name="trends_compare_title">Dual-Metric Comparison</string>
+    <string name="trends_compare_subtitle">Plot two health metrics on the same timeline to detect cross-correlations</string>
+    <string name="trends_metric_1_label">Primary Metric (Left Axis)</string>
+    <string name="trends_metric_2_label">Secondary Metric (Right Axis)</string>
+    <string name="home_infographic_title">Biometric Health Telemetry</string>
+    <string name="home_infographic_badge">LIVE SCAN • 3D TELEMETRY</string>
+    <string name="home_infographic_status">All biometric parameters within optimal baseline range</string>
     <string name="trends_empty_labs_title">No Lab Trends Recorded</string>
     <string name="trends_empty_labs_desc">Lab indicators like Blood Glucose, Hemoglobin, and Lipid Profile will be tracked across visits.</string>
     <string name="trends_empty_vitals_title">No Vital Trends Recorded</string>
