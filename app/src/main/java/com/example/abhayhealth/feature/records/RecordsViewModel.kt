@@ -9,6 +9,7 @@ import com.example.abhayhealth.core.common.DispatcherProvider
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.domain.repository.AuthRepository
 import com.example.abhayhealth.domain.repository.PatientProfileRepository
+import com.example.abhayhealth.feature.medicines.MedicationAlarmScheduler
 import com.example.abhayhealth.feature.medicines.MedicationDao
 import com.example.abhayhealth.feature.records.export.ExportReportState
 import com.example.abhayhealth.feature.records.export.MedicalReportExportManager
@@ -130,7 +131,7 @@ class RecordsViewModel(
         _infoMessage.value = null
     }
 
-    fun importDocument(uri: Uri, context: Context) {
+    fun importDocument(uri: Uri, context: Context, onImported: ((Long) -> Unit)? = null) {
         val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
         val repo = medicalRecordRepository
         if (repo == null) {
@@ -180,13 +181,20 @@ class RecordsViewModel(
                             )
                             repo.saveExtractedInfo(info)
 
-                            // Automatically extract prescription medicines & sync to MedicationDao
+                            // Automatically extract prescription medicines & sync to MedicationDao & alarms
                             val parsedMedicines = MedicalFieldParser.parsePrescriptionMedicines(raw, uid)
                             val dao = medicationDao
                             if (dao != null && parsedMedicines.isNotEmpty()) {
                                 withContext(dispatcherProvider.io) {
                                     parsedMedicines.forEach { med ->
                                         dao.insertOrUpdate(med)
+                                        MedicationAlarmScheduler.scheduleMedicationAlarm(
+                                            context = context,
+                                            medicationId = med.id,
+                                            name = med.name,
+                                            dosage = med.dosage,
+                                            timeSlot = med.timeSlot
+                                        )
                                     }
                                 }
                             }
@@ -204,6 +212,7 @@ class RecordsViewModel(
                         }
 
                         _infoMessage.value = "Document imported and health data extracted successfully."
+                        onImported?.invoke(savedRecord.id)
                     } catch (_: Exception) {
                         DocumentImportManager.deleteFile(result.localFilePath, context)
                         _errorMessage.value = "Failed to save record to local database."

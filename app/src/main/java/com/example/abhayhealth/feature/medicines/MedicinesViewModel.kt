@@ -48,21 +48,16 @@ class MedicinesViewModel(
         observeAuthState()
     }
 
+    private fun getCurrentUid(): String {
+        return authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+    }
+
     private fun observeAuthState() {
-        val authRepo = authRepository ?: return
         viewModelScope.launch(dispatcherProvider.main) {
-            authRepo.authState.collectLatest { state ->
-                when (state) {
-                    is AuthState.Authenticated -> {
-                        observeMedicationsForUid(state.user.uid)
-                    }
-                    else -> {
-                        observeJob?.cancel()
-                        _medications.value = emptyList()
-                        _showAddDialog.value = false
-                        _showRemindersDialog.value = false
-                    }
-                }
+            val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
+            authFlow.collectLatest { state ->
+                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                observeMedicationsForUid(uid)
             }
         }
     }
@@ -106,7 +101,7 @@ class MedicinesViewModel(
 
     fun addMedication(name: String, dosage: String, timeSlot: String) {
         if (name.isBlank()) return
-        val uid = authRepository?.currentUser?.uid ?: return
+        val uid = getCurrentUid()
         val dao = medicationDao ?: return
 
         val entity = PrescriptionMedicationEntity(
@@ -137,7 +132,7 @@ class MedicinesViewModel(
     }
 
     fun toggleDoseTaken(id: String) {
-        val uid = authRepository?.currentUser?.uid ?: return
+        val uid = getCurrentUid()
         val dao = medicationDao ?: return
 
         viewModelScope.launch(dispatcherProvider.main) {
@@ -148,7 +143,7 @@ class MedicinesViewModel(
     }
 
     fun removeMedication(id: String) {
-        val uid = authRepository?.currentUser?.uid ?: return
+        val uid = getCurrentUid()
         val dao = medicationDao ?: return
 
         // Cancel scheduled alarm when removed

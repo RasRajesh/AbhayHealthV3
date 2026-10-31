@@ -1,5 +1,6 @@
 package com.example.abhayhealth.feature.records
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
@@ -7,6 +8,7 @@ import com.example.abhayhealth.core.common.DispatcherProvider
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.domain.model.ParsedMedicalResult
 import com.example.abhayhealth.domain.repository.AuthRepository
+import com.example.abhayhealth.feature.medicines.MedicationAlarmScheduler
 import com.example.abhayhealth.feature.medicines.MedicationDao
 import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
 import com.example.abhayhealth.feature.vitals.VitalReadingRepository
@@ -295,7 +297,7 @@ class ExtractionReviewViewModel(
         }
     }
 
-    fun saveReviewedInfo(onSuccess: () -> Unit) {
+    fun saveReviewedInfo(context: Context? = null, onSuccess: () -> Unit) {
         if (_isSaving.value) return
 
         val uid = getCurrentUid()
@@ -328,13 +330,23 @@ class ExtractionReviewViewModel(
                     medicalRecordRepository.saveExtractedInfoWithTitleUpdate(info, info.documentTitle)
                 }
 
-                // 2. Add medications to MedicationDao so they populate Medicine Screen
+                // 2. Add medications to MedicationDao and schedule local notification alarms
                 val dao = medicationDao
                 val medicines = _parsedMedicines.value
                 if (dao != null && medicines.isNotEmpty()) {
                     withContext(dispatcherProvider.io) {
                         medicines.forEach { med ->
-                            dao.insertOrUpdate(med.copy(accountUid = uid))
+                            val updatedMed = med.copy(accountUid = uid)
+                            dao.insertOrUpdate(updatedMed)
+                            context?.let { ctx ->
+                                MedicationAlarmScheduler.scheduleMedicationAlarm(
+                                    context = ctx,
+                                    medicationId = updatedMed.id,
+                                    name = updatedMed.name,
+                                    dosage = updatedMed.dosage,
+                                    timeSlot = updatedMed.timeSlot
+                                )
+                            }
                         }
                     }
                 }

@@ -84,7 +84,9 @@ fun RecordsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.importDocument(uri, context)
+            viewModel.importDocument(uri, context, onImported = { recordId ->
+                onReviewClick(recordId)
+            })
         }
     }
 

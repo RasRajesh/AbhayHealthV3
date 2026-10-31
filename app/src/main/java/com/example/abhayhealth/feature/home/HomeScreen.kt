@@ -52,6 +52,8 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -89,6 +91,7 @@ import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
 import com.example.abhayhealth.core.designsystem.components.AbhayPrimaryButton
 import com.example.abhayhealth.core.designsystem.components.EmptyStateContent
 import com.example.abhayhealth.domain.model.ParsedMedicalResult
+import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
 import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.vitals.AddVitalReadingDialog
 import com.example.abhayhealth.feature.vitals.HealthTrendsChartCard
@@ -112,6 +115,7 @@ fun HomeScreen(
     val showAddVitalDialog by viewModel.showAddVitalDialog.collectAsState()
     val extractedInfos by viewModel.extractedInfos.collectAsState()
     val extractedBiomarkers by viewModel.extractedBiomarkers.collectAsState()
+    val todayMedications by viewModel.todayMedications.collectAsState()
 
     val greetingText = if (!patientName.isNullOrBlank()) {
         stringResource(id = R.string.home_greeting_user, patientName!!)
@@ -246,16 +250,104 @@ fun HomeScreen(
             }
         }
 
-        // 6. Health Trends Section (Shown only when vital readings are available)
-        if (vitalReadings.isNotEmpty()) {
-            item {
-                HealthTrendsChartCard(
-                    readings = vitalReadings,
-                    selectedMetric = selectedVitalMetric,
-                    onSelectMetric = { viewModel.selectVitalMetric(it) },
-                    onLogReadingClick = { viewModel.showAddVitalDialog(true) }
-                )
+        // 6. Today's Medications Section
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.home_section_meds),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (todayMedications.isNotEmpty()) {
+                        val takenCount = todayMedications.count { it.isTaken }
+                        Text(
+                            text = "$takenCount/${todayMedications.size} taken",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                if (todayMedications.isEmpty()) {
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Medication,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(id = R.string.home_no_medicine_scheduled),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = stringResource(id = R.string.home_empty_meds_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        todayMedications.forEach { medication ->
+                            HomeMedicationItemRow(
+                                medication = medication,
+                                onToggleTaken = { viewModel.toggleMedicationTaken(medication.id) }
+                            )
+                        }
+                    }
+                }
             }
+        }
+
+        // 7. Health Trends & Vitals Section (Always visible for historical metrics tracking)
+        item {
+            HealthTrendsChartCard(
+                readings = vitalReadings,
+                selectedMetric = selectedVitalMetric,
+                onSelectMetric = { viewModel.selectVitalMetric(it) },
+                onLogReadingClick = { viewModel.showAddVitalDialog(true) }
+            )
         }
     }
 
@@ -1019,3 +1111,103 @@ private fun ExtractedBiomarkerRow(biomarker: ParsedMedicalResult) {
         }
     }
 }
+
+@Composable
+fun HomeMedicationItemRow(
+    medication: PrescriptionMedicationEntity,
+    onToggleTaken: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("home_medication_row_${medication.id}"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (medication.isTaken) {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .border(
+                        1.dp,
+                        if (medication.isTaken) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                        else MaterialTheme.colorScheme.outlineVariant,
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (medication.isTaken) Icons.Default.CheckCircle else Icons.Default.Medication,
+                    contentDescription = null,
+                    tint = if (medication.isTaken) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = medication.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = if (medication.isTaken) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = medication.dosage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        text = medication.timeSlot,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            FilledTonalButton(
+                onClick = onToggleTaken,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = if (medication.isTaken) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    }
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = if (medication.isTaken) "Taken ✓" else "Take",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+

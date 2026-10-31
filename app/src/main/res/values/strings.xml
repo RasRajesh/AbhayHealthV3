@@ -93,6 +93,7 @@
     <string name="home_card_desc">Add reports, prescriptions, and daily medicines to keep your medical timeline always with you.</string>
     <string name="home_btn_add_record">Add Health Record</string>
     <string name="home_section_meds">Today\'s Medications</string>
+    <string name="home_no_medicine_scheduled">No Medicine scheduled today</string>
     <string name="home_empty_meds_title">No medicines scheduled for today</string>
     <string name="home_empty_meds_desc">Add medicines from your prescriptions or daily schedule to track dosage.</string>
     <string name="home_section_reports">Recent Medical Records</string>

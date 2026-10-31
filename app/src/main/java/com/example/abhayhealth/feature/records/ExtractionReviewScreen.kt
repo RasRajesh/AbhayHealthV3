@@ -529,7 +529,7 @@ fun ExtractionReviewScreen(
 
                             Button(
                                 onClick = {
-                                    viewModel.saveReviewedInfo(onSuccess = onBackClick)
+                                    viewModel.saveReviewedInfo(context = context, onSuccess = onBackClick)
                                 },
                                 enabled = !isExtracting && !isSaving,
                                 modifier = Modifier

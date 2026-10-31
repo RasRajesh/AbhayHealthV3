@@ -85,6 +85,9 @@ class HomeViewModel(
     private val _extractedBiomarkers = MutableStateFlow<List<ParsedMedicalResult>>(emptyList())
     val extractedBiomarkers: StateFlow<List<ParsedMedicalResult>> = _extractedBiomarkers.asStateFlow()
 
+    private val _todayMedications = MutableStateFlow<List<PrescriptionMedicationEntity>>(emptyList())
+    val todayMedications: StateFlow<List<PrescriptionMedicationEntity>> = _todayMedications.asStateFlow()
+
     private var synthesisJob: Job? = null
 
     init {
@@ -92,6 +95,28 @@ class HomeViewModel(
         observeAiStateAndData()
         observeVitalReadings()
         observeExtractedData()
+        observeMedications()
+    }
+
+    private fun observeMedications() {
+        viewModelScope.launch(dispatcherProvider.main) {
+            val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
+            authFlow.collectLatest { state ->
+                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                medicationDao?.getMedicationsByAccount(uid)?.collectLatest { list ->
+                    _todayMedications.value = list
+                }
+            }
+        }
+    }
+
+    fun toggleMedicationTaken(id: String) {
+        viewModelScope.launch(dispatcherProvider.main) {
+            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+            withContext(dispatcherProvider.io) {
+                medicationDao?.toggleDoseTaken(id, uid)
+            }
+        }
     }
 
     private fun observeExtractedData() {
