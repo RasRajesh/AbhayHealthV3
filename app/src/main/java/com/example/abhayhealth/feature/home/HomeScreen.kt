@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Timeline
@@ -87,6 +88,8 @@ import com.example.abhayhealth.R
 import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
 import com.example.abhayhealth.core.designsystem.components.AbhayPrimaryButton
 import com.example.abhayhealth.core.designsystem.components.EmptyStateContent
+import com.example.abhayhealth.domain.model.ParsedMedicalResult
+import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.vitals.AddVitalReadingDialog
 import com.example.abhayhealth.feature.vitals.HealthTrendsChartCard
 
@@ -107,6 +110,8 @@ fun HomeScreen(
     val vitalReadings by viewModel.vitalReadings.collectAsState()
     val selectedVitalMetric by viewModel.selectedVitalMetric.collectAsState()
     val showAddVitalDialog by viewModel.showAddVitalDialog.collectAsState()
+    val extractedInfos by viewModel.extractedInfos.collectAsState()
+    val extractedBiomarkers by viewModel.extractedBiomarkers.collectAsState()
 
     val greetingText = if (!patientName.isNullOrBlank()) {
         stringResource(id = R.string.home_greeting_user, patientName!!)
@@ -178,37 +183,20 @@ fun HomeScreen(
             )
         }
 
-        // 3. AI Health Intelligence Summary Section (Animated when toggle is ON)
+        // 3. AI Health Intelligence Summary Section (Shown only when toggle is ON and data exists from records)
         item {
             AnimatedVisibility(
-                visible = isAiEnabled,
+                visible = isAiEnabled && aiSummaryState.hasData,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
-                if (!aiSummaryState.hasData && !aiSummaryState.isLoading) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                    ) {
-                        EmptyStateContent(
-                            title = "No data available",
-                            description = "Add medical records or profile details to generate AI health insights.",
-                            icon = Icons.Default.Info
-                        )
-                    }
-                } else {
-                    AiHealthSummaryCard(
-                        state = aiSummaryState,
-                        onRefresh = { viewModel.refreshAiSummary() },
-                        onOpenSafetyAudit = { viewModel.showDialog(AiDialogType.MEDICATION_SAFETY) },
-                        onOpenDoctorBrief = { viewModel.showDialog(AiDialogType.DOCTOR_BRIEF) },
-                        onOpenLabExplainer = { viewModel.showDialog(AiDialogType.LAB_EXPLAINER) }
-                    )
-                }
+                AiHealthSummaryCard(
+                    state = aiSummaryState,
+                    onRefresh = { viewModel.refreshAiSummary() },
+                    onOpenSafetyAudit = { viewModel.showDialog(AiDialogType.MEDICATION_SAFETY) },
+                    onOpenDoctorBrief = { viewModel.showDialog(AiDialogType.DOCTOR_BRIEF) },
+                    onOpenLabExplainer = { viewModel.showDialog(AiDialogType.LAB_EXPLAINER) }
+                )
             }
         }
 
@@ -248,100 +236,26 @@ fun HomeScreen(
             }
         }
 
-        // 6. Today's Medications Section
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(id = R.string.home_section_meds),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                if (isAiEnabled && aiSummaryState.totalMedications > 0) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "${aiSummaryState.takenMedications}/${aiSummaryState.totalMedications} Taken",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                EmptyStateContent(
-                    title = stringResource(id = R.string.home_empty_meds_title),
-                    description = stringResource(id = R.string.home_empty_meds_desc),
-                    icon = Icons.Default.Medication
+        // 5. Extracted Clinical Information Section (Home screen shows extracted information when available)
+        if (extractedBiomarkers.isNotEmpty() || extractedInfos.isNotEmpty()) {
+            item {
+                ExtractedInformationSection(
+                    extractedInfos = extractedInfos,
+                    biomarkers = extractedBiomarkers
                 )
             }
         }
 
-        // 7. Recent Medical Records Section
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(id = R.string.home_section_reports),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                if (isAiEnabled && aiSummaryState.totalRecords > 0) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "${aiSummaryState.totalRecords} Archived",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                EmptyStateContent(
-                    title = stringResource(id = R.string.home_empty_reports_title),
-                    description = stringResource(id = R.string.home_empty_reports_desc),
-                    icon = Icons.Default.Description
+        // 6. Health Trends Section (Shown only when vital readings are available)
+        if (vitalReadings.isNotEmpty()) {
+            item {
+                HealthTrendsChartCard(
+                    readings = vitalReadings,
+                    selectedMetric = selectedVitalMetric,
+                    onSelectMetric = { viewModel.selectVitalMetric(it) },
+                    onLogReadingClick = { viewModel.showAddVitalDialog(true) }
                 )
             }
-        }
-
-        // 8. Health Trends Section (Recharts-inspired Data Visualization)
-        item {
-            HealthTrendsChartCard(
-                readings = vitalReadings,
-                selectedMetric = selectedVitalMetric,
-                onSelectMetric = { viewModel.selectVitalMetric(it) },
-                onLogReadingClick = { viewModel.showAddVitalDialog(true) }
-            )
         }
     }
 
@@ -982,6 +896,126 @@ private fun LabExplainerItem(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun ExtractedInformationSection(
+    extractedInfos: List<ExtractedMedicalInfo>,
+    biomarkers: List<ParsedMedicalResult>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Science,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Extracted Information",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = "${biomarkers.size} Extracted Markers",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            val latestDoc = extractedInfos.maxByOrNull { it.updatedAtTimestamp }
+            if (latestDoc != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Source: ${latestDoc.documentTitle} • ${latestDoc.reportDate ?: "Recent"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                biomarkers.forEach { biomarker ->
+                    ExtractedBiomarkerRow(biomarker = biomarker)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExtractedBiomarkerRow(biomarker: ParsedMedicalResult) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = biomarker.testName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (biomarker.referenceRange.isNotBlank()) {
+                    Text(
+                        text = "Ref: ${biomarker.referenceRange}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${biomarker.value} ${biomarker.unit}".trim(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }

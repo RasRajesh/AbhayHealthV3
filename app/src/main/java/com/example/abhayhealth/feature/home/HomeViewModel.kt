@@ -79,12 +79,35 @@ class HomeViewModel(
     private val _showAddVitalDialog = MutableStateFlow(false)
     val showAddVitalDialog: StateFlow<Boolean> = _showAddVitalDialog.asStateFlow()
 
+    private val _extractedInfos = MutableStateFlow<List<ExtractedMedicalInfo>>(emptyList())
+    val extractedInfos: StateFlow<List<ExtractedMedicalInfo>> = _extractedInfos.asStateFlow()
+
+    private val _extractedBiomarkers = MutableStateFlow<List<ParsedMedicalResult>>(emptyList())
+    val extractedBiomarkers: StateFlow<List<ParsedMedicalResult>> = _extractedBiomarkers.asStateFlow()
+
     private var synthesisJob: Job? = null
 
     init {
         observeProfile()
         observeAiStateAndData()
         observeVitalReadings()
+        observeExtractedData()
+    }
+
+    private fun observeExtractedData() {
+        viewModelScope.launch(dispatcherProvider.main) {
+            val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
+            authFlow.collectLatest { state ->
+                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                medicalRecordRepository?.getAllExtractedInfo(uid)?.collectLatest { list ->
+                    _extractedInfos.value = list
+                    val allBiomarkers = list.flatMap { info ->
+                        MedicalFieldParser.deserializeResults(info.structuredResultsJson)
+                    }
+                    _extractedBiomarkers.value = allBiomarkers
+                }
+            }
+        }
     }
 
     private fun observeProfile() {
@@ -314,19 +337,15 @@ class HomeViewModel(
             val timeFormatter = SimpleDateFormat("h:mm a", Locale.getDefault())
             val formattedTime = timeFormatter.format(Date())
             val hasRecords = snapshot.records.isNotEmpty() || snapshot.extractedInfos.isNotEmpty()
-            val hasMeds = totalMeds > 0
-            val hasProfileDetails = !snapshot.profile?.healthConditions.isNullOrBlank() ||
-                    !snapshot.profile?.allergies.isNullOrBlank()
-            val hasVitals = _vitalReadings.value.isNotEmpty()
-            val hasAnyData = hasRecords || hasMeds || hasProfileDetails || hasVitals
+            val hasData = hasRecords
 
             withContext(dispatcherProvider.main) {
                 _aiSummaryState.value = AiHealthSummaryUiState(
                     isEnabled = true,
                     isLoading = false,
-                    hasData = hasAnyData,
-                    healthScore = if (hasAnyData) score else 0,
-                    statusTier = if (hasAnyData) statusTier else HealthStatusTier.STABLE,
+                    hasData = hasData,
+                    healthScore = if (hasData) score else 0,
+                    statusTier = if (hasData) statusTier else HealthStatusTier.STABLE,
                     totalMedications = totalMeds,
                     takenMedications = takenMeds,
                     nextMedication = nextMed,

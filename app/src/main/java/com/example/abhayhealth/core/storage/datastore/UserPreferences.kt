@@ -19,6 +19,8 @@ class UserPreferences(private val context: Context) {
         val KEY_USER_ID = stringPreferencesKey("user_id")
         val KEY_PATIENT_NAME = stringPreferencesKey("patient_name")
         val KEY_AI_SUMMARY_ENABLED = booleanPreferencesKey("ai_summary_enabled")
+        val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
+        val KEY_MED_REMINDERS_ENABLED = booleanPreferencesKey("med_reminders_enabled")
     }
 
     val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -48,6 +50,26 @@ class UserPreferences(private val context: Context) {
     suspend fun setAiSummaryEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[KEY_AI_SUMMARY_ENABLED] = enabled
+        }
+    }
+
+    val appLanguage: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[KEY_APP_LANGUAGE] ?: "English"
+    }
+
+    suspend fun setAppLanguage(language: String) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_APP_LANGUAGE] = language
+        }
+    }
+
+    val isMedRemindersEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[KEY_MED_REMINDERS_ENABLED] ?: true
+    }
+
+    suspend fun setMedRemindersEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_MED_REMINDERS_ENABLED] = enabled
         }
     }
 }

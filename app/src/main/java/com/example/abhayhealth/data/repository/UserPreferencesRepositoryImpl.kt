@@ -25,4 +25,16 @@ class UserPreferencesRepositoryImpl(
     override suspend fun setAiSummaryEnabled(enabled: Boolean) {
         userPreferences.setAiSummaryEnabled(enabled)
     }
+
+    override val appLanguage: Flow<String> = userPreferences.appLanguage
+
+    override suspend fun setAppLanguage(language: String) {
+        userPreferences.setAppLanguage(language)
+    }
+
+    override val isMedRemindersEnabled: Flow<Boolean> = userPreferences.isMedRemindersEnabled
+
+    override suspend fun setMedRemindersEnabled(enabled: Boolean) {
+        userPreferences.setMedRemindersEnabled(enabled)
+    }
 }

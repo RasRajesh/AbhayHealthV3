@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MeViewModel(
-    userPreferencesRepository: UserPreferencesRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
     private val authRepository: AuthRepository,
     private val medicalRecordRepository: MedicalRecordRepository,
     private val patientProfileRepository: PatientProfileRepository,
@@ -38,6 +38,42 @@ class MeViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = null
     )
+
+    val appLanguage: StateFlow<String> = userPreferencesRepository.appLanguage.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = "English"
+    )
+
+    val isMedRemindersEnabled: StateFlow<Boolean> = userPreferencesRepository.isMedRemindersEnabled.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = true
+    )
+
+    val isAiSummaryEnabled: StateFlow<Boolean> = userPreferencesRepository.isAiSummaryEnabled.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
+
+    fun setAppLanguage(language: String) {
+        viewModelScope.launch(dispatcherProvider.main) {
+            userPreferencesRepository.setAppLanguage(language)
+        }
+    }
+
+    fun setMedRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch(dispatcherProvider.main) {
+            userPreferencesRepository.setMedRemindersEnabled(enabled)
+        }
+    }
+
+    fun setAiSummaryEnabled(enabled: Boolean) {
+        viewModelScope.launch(dispatcherProvider.main) {
+            userPreferencesRepository.setAiSummaryEnabled(enabled)
+        }
+    }
 
     private val _isDeleting = MutableStateFlow(false)
     val isDeleting: StateFlow<Boolean> = _isDeleting.asStateFlow()
