@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -45,11 +46,11 @@ class HomeViewModel(
     private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
 ) : ViewModel() {
 
-    val patientName: StateFlow<String?> = userPreferencesRepository.patientName.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = null
-    )
+    private val _patientProfile = MutableStateFlow<PatientProfile?>(null)
+    val patientProfile: StateFlow<PatientProfile?> = _patientProfile.asStateFlow()
+
+    private val _patientName = MutableStateFlow<String?>("Patient")
+    val patientName: StateFlow<String?> = _patientName.asStateFlow()
 
     val isAiEnabled: StateFlow<Boolean> = userPreferencesRepository.isAiSummaryEnabled.stateIn(
         scope = viewModelScope,
@@ -81,8 +82,28 @@ class HomeViewModel(
     private var synthesisJob: Job? = null
 
     init {
+        observeProfile()
         observeAiStateAndData()
         observeVitalReadings()
+    }
+
+    private fun observeProfile() {
+        viewModelScope.launch(dispatcherProvider.main) {
+            val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
+            authFlow.collectLatest { state ->
+                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                patientProfileRepository?.getProfile(uid)?.collectLatest { profile ->
+                    _patientProfile.value = profile
+                    val resolvedName = profile?.fullName?.ifBlank { null }
+                    if (!resolvedName.isNullOrBlank()) {
+                        _patientName.value = resolvedName
+                    } else {
+                        val prefName = userPreferencesRepository.patientName.firstOrNull()?.ifBlank { null }
+                        _patientName.value = prefName ?: "Patient"
+                    }
+                }
+            }
+        }
     }
 
     private fun observeVitalReadings() {
@@ -90,9 +111,6 @@ class HomeViewModel(
             val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
             authFlow.collectLatest { state ->
                 val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
-                withContext(dispatcherProvider.io) {
-                    vitalReadingRepository?.ensureBaselineReadings(uid)
-                }
                 vitalReadingRepository?.getAllReadings(uid)?.collectLatest { readings ->
                     _vitalReadings.value = readings
                 }
@@ -295,13 +313,20 @@ class HomeViewModel(
 
             val timeFormatter = SimpleDateFormat("h:mm a", Locale.getDefault())
             val formattedTime = timeFormatter.format(Date())
+            val hasRecords = snapshot.records.isNotEmpty() || snapshot.extractedInfos.isNotEmpty()
+            val hasMeds = totalMeds > 0
+            val hasProfileDetails = !snapshot.profile?.healthConditions.isNullOrBlank() ||
+                    !snapshot.profile?.allergies.isNullOrBlank()
+            val hasVitals = _vitalReadings.value.isNotEmpty()
+            val hasAnyData = hasRecords || hasMeds || hasProfileDetails || hasVitals
 
             withContext(dispatcherProvider.main) {
                 _aiSummaryState.value = AiHealthSummaryUiState(
                     isEnabled = true,
                     isLoading = false,
-                    healthScore = score,
-                    statusTier = statusTier,
+                    hasData = hasAnyData,
+                    healthScore = if (hasAnyData) score else 0,
+                    statusTier = if (hasAnyData) statusTier else HealthStatusTier.STABLE,
                     totalMedications = totalMeds,
                     takenMedications = takenMeds,
                     nextMedication = nextMed,

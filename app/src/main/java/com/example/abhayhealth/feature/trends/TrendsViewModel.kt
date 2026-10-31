@@ -11,11 +11,19 @@ import com.example.abhayhealth.feature.records.MedicalFieldParser
 import com.example.abhayhealth.feature.records.MedicalRecordRepository
 import com.example.abhayhealth.feature.symptoms.SymptomLogEntity
 import com.example.abhayhealth.feature.symptoms.SymptomLogRepository
+import com.example.abhayhealth.feature.vitals.VitalReadingEntity
+import com.example.abhayhealth.feature.vitals.VitalReadingRepository
+import com.example.abhayhealth.feature.vitals.VitalType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class BiomarkerPoint(
     val recordDate: String,
@@ -40,6 +48,7 @@ class TrendsViewModel(
     private val medicalRecordRepository: MedicalRecordRepository? = null,
     private val authRepository: AuthRepository? = null,
     private val symptomLogRepository: SymptomLogRepository? = null,
+    private val vitalReadingRepository: VitalReadingRepository? = null,
     private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
 ) : ViewModel() {
 
@@ -64,98 +73,162 @@ class TrendsViewModel(
     }
 
     private fun observeBiomarkers() {
-        val authRepo = authRepository ?: return
         val recordRepo = medicalRecordRepository ?: return
-
         viewModelScope.launch(dispatcherProvider.main) {
-            authRepo.authState.collectLatest { state ->
-                when (state) {
-                    is AuthState.Authenticated -> {
-                        val uid = state.user.uid
-                        recordRepo.getAllExtractedInfo(uid).collectLatest { infoList ->
-                            val trendsMap = mutableMapOf<String, MutableList<BiomarkerPoint>>()
-                            val rangeMap = mutableMapOf<String, String>()
-
-                            infoList.forEach { info ->
-                                if (info.structuredResultsJson.isNotBlank() && info.structuredResultsJson != "[]") {
-                                    val results = MedicalFieldParser.deserializeResults(info.structuredResultsJson)
-                                    val dateStr = info.reportDate ?: "Recent"
-                                    val timestamp = info.updatedAtTimestamp
-
-                                    results.forEach { result ->
-                                        val testName = result.testName.trim()
-                                        val valStr = result.value.trim()
-
-                                        if (testName.isNotBlank() && valStr.isNotBlank()) {
-                                            val numValue = extractNumericValue(valStr)
-                                            val list = trendsMap.getOrPut(testName) { mutableListOf() }
-                                            list.add(
-                                                BiomarkerPoint(
-                                                    recordDate = dateStr,
-                                                    timestamp = timestamp,
-                                                    value = valStr,
-                                                    numericValue = numValue,
-                                                    unit = result.unit.trim()
-                                                )
-                                            )
-                                            if (result.referenceRange.isNotBlank()) {
-                                                rangeMap[testName] = result.referenceRange
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            val allTrends = trendsMap.map { (name, points) ->
-                                val sortedPoints = points.sortedByDescending { it.timestamp }
-                                val latest = sortedPoints.firstOrNull()
-                                val category = categorizeBiomarker(name)
-                                val latestNum = latest?.numericValue
-                                val guidelineTag = evaluateClinicalGuideline(name, latestNum)
-
-                                BiomarkerTrend(
-                                    biomarkerName = name,
-                                    latestValue = latest?.value ?: "--",
-                                    numericValue = latestNum,
-                                    unit = latest?.unit ?: "",
-                                    referenceRange = rangeMap[name] ?: "",
-                                    category = category,
-                                    clinicalGuidelineTag = guidelineTag,
-                                    points = sortedPoints
-                                )
-                            }.sortedByDescending { it.points.size }
-
-                            _biomarkerTrends.value = allTrends
-                            _labTrends.value = allTrends.filter { it.category == "LABS" }
-                            _vitalsTrends.value = allTrends.filter { it.category == "VITALS" }
-                        }
+            val authRepo = authRepository
+            if (authRepo != null) {
+                authRepo.authState.collectLatest { state ->
+                    val uid = when (state) {
+                        is AuthState.Authenticated -> state.user.uid
+                        else -> authRepo.currentUser?.uid?.ifBlank { null } ?: "local_user"
                     }
-                    else -> {
-                        _biomarkerTrends.value = emptyList()
-                        _labTrends.value = emptyList()
-                        _vitalsTrends.value = emptyList()
-                    }
+                    observeForUid(uid, recordRepo)
                 }
+            } else {
+                observeForUid("local_user", recordRepo)
             }
         }
     }
 
-    private fun observeSymptoms() {
-        val authRepo = authRepository ?: return
-        val symptomRepo = symptomLogRepository ?: return
+    private suspend fun observeForUid(uid: String, recordRepo: MedicalRecordRepository) {
+        val vitalRepo = vitalReadingRepository
+        val extractedFlow = recordRepo.getAllExtractedInfo(uid)
+        val vitalsFlow = vitalRepo?.getAllReadings(uid)
 
-        viewModelScope.launch(dispatcherProvider.main) {
-            authRepo.authState.collectLatest { state ->
-                when (state) {
-                    is AuthState.Authenticated -> {
-                        val uid = state.user.uid
-                        symptomRepo.getAllSymptoms(uid).collectLatest { list ->
-                            _symptoms.value = list
+        val combinedFlow = if (vitalsFlow != null) {
+            combine(extractedFlow, vitalsFlow) { infoList, vitalsList ->
+                Pair(infoList, vitalsList)
+            }
+        } else {
+            extractedFlow.combine(flowOf(emptyList<VitalReadingEntity>())) { infoList, vitalsList ->
+                Pair(infoList, vitalsList)
+            }
+        }
+
+        combinedFlow.collectLatest { (infoList, vitalsList) ->
+            val trendsMap = mutableMapOf<String, MutableList<BiomarkerPoint>>()
+            val rangeMap = mutableMapOf<String, String>()
+            val sdf = SimpleDateFormat("dd MMM", Locale.getDefault())
+
+            // 1. Process Extracted Medical Document Info
+            infoList.forEach { info ->
+                if (info.structuredResultsJson.isNotBlank() && info.structuredResultsJson != "[]") {
+                    val results = MedicalFieldParser.deserializeResults(info.structuredResultsJson)
+                    val dateStr = info.reportDate ?: sdf.format(Date(info.updatedAtTimestamp))
+                    val timestamp = info.updatedAtTimestamp
+
+                    results.forEach { result ->
+                        val testName = result.testName.trim()
+                        val valStr = result.value.trim()
+
+                        if (testName.isNotBlank() && valStr.isNotBlank()) {
+                            val numValue = extractNumericValue(valStr)
+                            val list = trendsMap.getOrPut(testName) { mutableListOf() }
+                            list.add(
+                                BiomarkerPoint(
+                                    recordDate = dateStr,
+                                    timestamp = timestamp,
+                                    value = valStr,
+                                    numericValue = numValue,
+                                    unit = result.unit.trim()
+                                )
+                            )
+                            if (result.referenceRange.isNotBlank()) {
+                                rangeMap[testName] = result.referenceRange
+                            }
                         }
                     }
-                    else -> {
-                        _symptoms.value = emptyList()
+                }
+            }
+
+            // 2. Process Vitals
+            vitalsList.forEach { vital ->
+                val dateStr = sdf.format(Date(vital.timestamp))
+                if (vital.type == VitalType.BLOOD_PRESSURE.name) {
+                    if (vital.systolic != null) {
+                        val sList = trendsMap.getOrPut("Blood Pressure (Systolic)") { mutableListOf() }
+                        sList.add(
+                            BiomarkerPoint(
+                                recordDate = dateStr,
+                                timestamp = vital.timestamp,
+                                value = "${vital.systolic.toInt()}",
+                                numericValue = vital.systolic,
+                                unit = "mmHg"
+                            )
+                        )
+                        rangeMap["Blood Pressure (Systolic)"] = "< 120 mmHg"
                     }
+                    if (vital.diastolic != null) {
+                        val dList = trendsMap.getOrPut("Blood Pressure (Diastolic)") { mutableListOf() }
+                        dList.add(
+                            BiomarkerPoint(
+                                recordDate = dateStr,
+                                timestamp = vital.timestamp,
+                                value = "${vital.diastolic.toInt()}",
+                                numericValue = vital.diastolic,
+                                unit = "mmHg"
+                            )
+                        )
+                        rangeMap["Blood Pressure (Diastolic)"] = "< 80 mmHg"
+                    }
+                } else if (vital.type == VitalType.WEIGHT.name && vital.weightKg != null) {
+                    val wList = trendsMap.getOrPut("Weight") { mutableListOf() }
+                    wList.add(
+                        BiomarkerPoint(
+                            recordDate = dateStr,
+                            timestamp = vital.timestamp,
+                            value = "${vital.weightKg}",
+                            numericValue = vital.weightKg,
+                            unit = "kg"
+                        )
+                    )
+                    rangeMap["Weight"] = "Healthy BMI Range"
+                }
+            }
+
+            val allTrends = trendsMap.map { (name, points) ->
+                // Sort chronologically for time-series visualization
+                val sortedPoints = points.sortedBy { it.timestamp }
+                val latest = sortedPoints.lastOrNull()
+                val category = categorizeBiomarker(name)
+                val latestNum = latest?.numericValue
+                val guidelineTag = evaluateClinicalGuideline(name, latestNum)
+
+                BiomarkerTrend(
+                    biomarkerName = name,
+                    latestValue = latest?.value ?: "--",
+                    numericValue = latestNum,
+                    unit = latest?.unit ?: "",
+                    referenceRange = rangeMap[name] ?: "",
+                    category = category,
+                    clinicalGuidelineTag = guidelineTag,
+                    points = sortedPoints
+                )
+            }.sortedByDescending { it.points.size }
+
+            _biomarkerTrends.value = allTrends
+            _labTrends.value = allTrends.filter { it.category == "LABS" }
+            _vitalsTrends.value = allTrends.filter { it.category == "VITALS" }
+        }
+    }
+
+    private fun observeSymptoms() {
+        val symptomRepo = symptomLogRepository ?: return
+        viewModelScope.launch(dispatcherProvider.main) {
+            val authRepo = authRepository
+            if (authRepo != null) {
+                authRepo.authState.collectLatest { state ->
+                    val uid = when (state) {
+                        is AuthState.Authenticated -> state.user.uid
+                        else -> authRepo.currentUser?.uid?.ifBlank { null } ?: "local_user"
+                    }
+                    symptomRepo.getAllSymptoms(uid).collectLatest { list ->
+                        _symptoms.value = list
+                    }
+                }
+            } else {
+                symptomRepo.getAllSymptoms("local_user").collectLatest { list ->
+                    _symptoms.value = list
                 }
             }
         }

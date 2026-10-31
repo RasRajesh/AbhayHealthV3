@@ -52,12 +52,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import java.io.File
 import com.example.abhayhealth.R
 import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
 import com.example.abhayhealth.feature.records.export.ExportReportDialog
@@ -71,6 +77,7 @@ fun MeScreen(
 ) {
     val context = LocalContext.current
     val patientName by viewModel.patientName.collectAsState()
+    val patientProfile by viewModel.patientProfile.collectAsState()
     val isDeleting by viewModel.isDeleting.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val exportState by viewModel.exportState.collectAsState()
@@ -79,7 +86,28 @@ fun MeScreen(
     val medicationCount by viewModel.medicationCount.collectAsState()
     val vitalCount by viewModel.vitalCount.collectAsState()
 
-    val displayName = if (!patientName.isNull_or_blank()) patientName!! else stringResource(id = R.string.me_profile_default)
+    val displayName = patientProfile?.fullName?.ifBlank { null }
+        ?: if (!patientName.isNullOrBlank()) patientName!! else stringResource(id = R.string.me_profile_default)
+
+    val profileBitmap = remember(patientProfile?.photoUri) {
+        val uriStr = patientProfile?.photoUri
+        if (uriStr.isNullOrBlank()) null
+        else {
+            try {
+                if (uriStr.startsWith("/")) {
+                    val file = File(uriStr)
+                    if (file.exists()) BitmapFactory.decodeFile(uriStr) else null
+                } else {
+                    val uri = Uri.parse(uriStr)
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
 
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
 
@@ -228,11 +256,22 @@ fun MeScreen(
                         .padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Official AbhayHealth Logo as verified medical profile badge
-                    AbhayHealthBrandLogo(
-                        size = 54.dp,
-                        elevation = 3.dp
-                    )
+                    if (profileBitmap != null) {
+                        Image(
+                            bitmap = profileBitmap.asImageBitmap(),
+                            contentDescription = "Profile picture",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(54.dp)
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        // Official AbhayHealth Logo as verified medical profile badge
+                        AbhayHealthBrandLogo(
+                            size = 54.dp,
+                            elevation = 3.dp
+                        )
+                    }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(

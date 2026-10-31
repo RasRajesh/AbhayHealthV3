@@ -9,9 +9,16 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import android.graphics.BitmapFactory
+import java.io.File
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -86,10 +93,11 @@ import com.example.abhayhealth.feature.vitals.HealthTrendsChartCard
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    onAddRecordClick: () -> Unit,
+    onAddRecordClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val patientProfile by viewModel.patientProfile.collectAsState()
     val patientName by viewModel.patientName.collectAsState()
     val isAiEnabled by viewModel.isAiEnabled.collectAsState()
     val aiSummaryState by viewModel.aiSummaryState.collectAsState()
@@ -113,7 +121,7 @@ fun HomeScreen(
         contentPadding = PaddingValues(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. Greeting & Brand Header
+        // 1. Greeting & Brand / Profile Header
         item {
             Row(
                 modifier = Modifier
@@ -137,11 +145,28 @@ fun HomeScreen(
                     )
                 }
                 Spacer(modifier = Modifier.width(14.dp))
-                // Official AbhayHealth brand launcher logo
-                AbhayHealthBrandLogo(
-                    size = 46.dp,
-                    elevation = 2.dp
-                )
+                val photoPath = patientProfile?.photoUri
+                val profileBitmap = remember(photoPath) {
+                    if (!photoPath.isNullOrBlank() && File(photoPath).exists()) {
+                        BitmapFactory.decodeFile(photoPath)
+                    } else null
+                }
+                if (profileBitmap != null) {
+                    Image(
+                        bitmap = profileBitmap.asImageBitmap(),
+                        contentDescription = "Profile Photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                    )
+                } else {
+                    AbhayHealthBrandLogo(
+                        size = 46.dp,
+                        elevation = 2.dp
+                    )
+                }
             }
         }
 
@@ -160,13 +185,30 @@ fun HomeScreen(
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
-                AiHealthSummaryCard(
-                    state = aiSummaryState,
-                    onRefresh = { viewModel.refreshAiSummary() },
-                    onOpenSafetyAudit = { viewModel.showDialog(AiDialogType.MEDICATION_SAFETY) },
-                    onOpenDoctorBrief = { viewModel.showDialog(AiDialogType.DOCTOR_BRIEF) },
-                    onOpenLabExplainer = { viewModel.showDialog(AiDialogType.LAB_EXPLAINER) }
-                )
+                if (!aiSummaryState.hasData && !aiSummaryState.isLoading) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    ) {
+                        EmptyStateContent(
+                            title = "No data available",
+                            description = "Add medical records or profile details to generate AI health insights.",
+                            icon = Icons.Default.Info
+                        )
+                    }
+                } else {
+                    AiHealthSummaryCard(
+                        state = aiSummaryState,
+                        onRefresh = { viewModel.refreshAiSummary() },
+                        onOpenSafetyAudit = { viewModel.showDialog(AiDialogType.MEDICATION_SAFETY) },
+                        onOpenDoctorBrief = { viewModel.showDialog(AiDialogType.DOCTOR_BRIEF) },
+                        onOpenLabExplainer = { viewModel.showDialog(AiDialogType.LAB_EXPLAINER) }
+                    )
+                }
             }
         }
 
@@ -204,20 +246,6 @@ fun HomeScreen(
                     }
                 }
             }
-        }
-
-        // 5. Add Health Record Action Button (Smooth pill styling)
-        item {
-            AbhayPrimaryButton(
-                text = stringResource(id = R.string.home_btn_add_record),
-                onClick = onAddRecordClick,
-                icon = Icons.Default.Add,
-                testTag = "home_add_record_btn",
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            )
         }
 
         // 6. Today's Medications Section
@@ -552,35 +580,12 @@ private fun AiToggleCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = stringResource(id = R.string.home_ai_toggle_label),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isAiEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        ) {
-                            Text(
-                                text = if (isAiEnabled) stringResource(id = R.string.home_ai_badge_active) else stringResource(id = R.string.home_ai_badge_inactive),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isAiEnabled) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = stringResource(id = R.string.home_ai_toggle_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = "AI Assist",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
             Spacer(modifier = Modifier.width(12.dp))

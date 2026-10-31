@@ -22,7 +22,11 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
+import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -71,6 +75,7 @@ fun ExtractionReviewScreen(
     val title by viewModel.documentTitle.collectAsState()
     val date by viewModel.reportDate.collectAsState()
     val testResults by viewModel.parsedResults.collectAsState()
+    val parsedMedicines by viewModel.parsedMedicines.collectAsState()
     val isExtracting by viewModel.isExtracting.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
@@ -79,6 +84,7 @@ fun ExtractionReviewScreen(
 
     var selectedTabIndex by remember { mutableIntStateOf(1) } // Default to Extracted Info tab
     var showAddDialog by remember { mutableStateOf(false) }
+    var showAddMedDialog by remember { mutableStateOf(false) }
     var showRawText by remember { mutableStateOf(false) }
 
     if (showReExtractWarning) {
@@ -105,6 +111,24 @@ fun ExtractionReviewScreen(
             onAdd = { testName, value, unit, refRange ->
                 viewModel.addTestResult(testName, value, unit, refRange)
                 showAddDialog = false
+            }
+        )
+    }
+
+    if (showAddMedDialog) {
+        val currentUid = record?.accountUid ?: "local_user"
+        AddMedicineDialog(
+            onDismiss = { showAddMedDialog = false },
+            onAdd = { name, dosage, timeSlot ->
+                viewModel.addMedicine(
+                    PrescriptionMedicationEntity(
+                        accountUid = currentUid,
+                        name = name,
+                        dosage = dosage.ifBlank { "As Directed" },
+                        timeSlot = timeSlot.ifBlank { "MORNING (08:30)" }
+                    )
+                )
+                showAddMedDialog = false
             }
         )
     }
@@ -345,6 +369,62 @@ fun ExtractionReviewScreen(
                         }
                     }
 
+                    // Prescribed Medications Section
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Medication,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Prescribed Medicines (${parsedMedicines.size})",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            TextButton(onClick = { showAddMedDialog = true }) {
+                                Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Med")
+                            }
+                        }
+                    }
+
+                    if (parsedMedicines.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Text(
+                                    text = "No prescribed medicines recognized in this report. Tap '+ Add Med' to add prescriptions to your medicine schedule.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(16.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        items(
+                            items = parsedMedicines,
+                            key = { it.id }
+                        ) { med ->
+                            MedicineResultCard(
+                                medicine = med,
+                                onUpdate = { updatedMed -> viewModel.updateMedicine(updatedMed) },
+                                onDelete = { viewModel.deleteMedicine(med.id) }
+                            )
+                        }
+                    }
+
                     // Extracted Test Results List
                     item {
                         Row(
@@ -581,6 +661,114 @@ private fun AddTestResultDialog(
             Button(
                 onClick = { onAdd(name, value, unit, range) },
                 enabled = name.isNotBlank() && value.isNotBlank()
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun MedicineResultCard(
+    medicine: PrescriptionMedicationEntity,
+    onUpdate: (PrescriptionMedicationEntity) -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = medicine.name,
+                    onValueChange = { onUpdate(medicine.copy(name = it)) },
+                    label = { Text("Medicine Name") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                IconButton(onClick = onDelete) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete medicine", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = medicine.dosage,
+                    onValueChange = { onUpdate(medicine.copy(dosage = it)) },
+                    label = { Text("Dosage (e.g. 500mg)") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = medicine.timeSlot,
+                    onValueChange = { onUpdate(medicine.copy(timeSlot = it)) },
+                    label = { Text("Time Slot") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddMedicineDialog(
+    onDismiss: () -> Unit,
+    onAdd: (name: String, dosage: String, timeSlot: String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var dosage by remember { mutableStateOf("") }
+    var timeSlot by remember { mutableStateOf("MORNING (08:30)") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Prescribed Medicine") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Medicine Name (e.g. Paracetamol)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = dosage,
+                    onValueChange = { dosage = it },
+                    label = { Text("Dosage (e.g. 500 mg or 1 tablet)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = timeSlot,
+                    onValueChange = { timeSlot = it },
+                    label = { Text("Time Slot (e.g. MORNING (08:30))") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onAdd(name, dosage, timeSlot) },
+                enabled = name.isNotBlank()
             ) {
                 Text("Add")
             }

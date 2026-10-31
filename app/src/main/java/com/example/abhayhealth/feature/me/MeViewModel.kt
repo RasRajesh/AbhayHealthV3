@@ -60,8 +60,24 @@ class MeViewModel(
     private val _vitalCount = MutableStateFlow(0)
     val vitalCount: StateFlow<Int> = _vitalCount.asStateFlow()
 
+    private val _patientProfile = MutableStateFlow<com.example.abhayhealth.domain.model.PatientProfile?>(null)
+    val patientProfile: StateFlow<com.example.abhayhealth.domain.model.PatientProfile?> = _patientProfile.asStateFlow()
+
+    init {
+        observeProfile()
+    }
+
+    private fun observeProfile() {
+        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        viewModelScope.launch(dispatcherProvider.main) {
+            patientProfileRepository.getProfile(uid).collect {
+                _patientProfile.value = it
+            }
+        }
+    }
+
     fun openExportDialog() {
-        val uid = authRepository.currentUser?.uid ?: return
+        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
         refreshCounts(uid)
         _exportState.value = ExportReportState.Idle
         _showExportDialog.value = true

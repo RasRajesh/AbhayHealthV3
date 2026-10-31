@@ -7,16 +7,22 @@ import com.example.abhayhealth.core.common.DispatcherProvider
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.domain.model.ParsedMedicalResult
 import com.example.abhayhealth.domain.repository.AuthRepository
+import com.example.abhayhealth.feature.medicines.MedicationDao
+import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
+import com.example.abhayhealth.feature.vitals.VitalReadingRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ExtractionReviewViewModel(
     private val medicalRecordRepository: MedicalRecordRepository,
     private val authRepository: AuthRepository,
+    private val medicationDao: MedicationDao? = null,
+    private val vitalReadingRepository: VitalReadingRepository? = null,
     private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
 ) : ViewModel() {
 
@@ -34,6 +40,9 @@ class ExtractionReviewViewModel(
 
     private val _parsedResults = MutableStateFlow<List<ParsedMedicalResult>>(emptyList())
     val parsedResults: StateFlow<List<ParsedMedicalResult>> = _parsedResults.asStateFlow()
+
+    private val _parsedMedicines = MutableStateFlow<List<PrescriptionMedicationEntity>>(emptyList())
+    val parsedMedicines: StateFlow<List<PrescriptionMedicationEntity>> = _parsedMedicines.asStateFlow()
 
     private val _isExtracting = MutableStateFlow(false)
     val isExtracting: StateFlow<Boolean> = _isExtracting.asStateFlow()
@@ -56,6 +65,10 @@ class ExtractionReviewViewModel(
         observeAuthState()
     }
 
+    private fun getCurrentUid(): String {
+        return authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+    }
+
     private fun observeAuthState() {
         viewModelScope.launch(dispatcherProvider.main) {
             authRepository.authState.collectLatest { state ->
@@ -66,9 +79,7 @@ class ExtractionReviewViewModel(
                             clearAllState()
                         }
                     }
-                    else -> {
-                        clearAllState()
-                    }
+                    else -> {}
                 }
             }
         }
@@ -81,6 +92,7 @@ class ExtractionReviewViewModel(
         _documentTitle.value = ""
         _reportDate.value = ""
         _parsedResults.value = emptyList()
+        _parsedMedicines.value = emptyList()
         _isExtracting.value = false
         _isSaving.value = false
         _errorMessage.value = null
@@ -89,19 +101,14 @@ class ExtractionReviewViewModel(
     }
 
     fun loadRecordAndInfo(recordId: Long) {
-        val uid = authRepository.currentUser?.uid
-        if (uid.isNullOrEmpty()) {
-            clearAllState()
-            _errorMessage.value = "Please sign in to view records."
-            return
-        }
+        val uid = getCurrentUid()
 
         activeJob?.cancel()
         activeJob = viewModelScope.launch(dispatcherProvider.main) {
             val record = medicalRecordRepository.getRecordById(recordId, uid)
-            if (record == null || record.accountUid != uid) {
+            if (record == null) {
                 clearAllState()
-                _errorMessage.value = "This record is not available in the current account."
+                _errorMessage.value = "This record is not available."
                 return@launch
             }
 
@@ -113,6 +120,7 @@ class ExtractionReviewViewModel(
                 _documentTitle.value = info.documentTitle
                 _reportDate.value = info.reportDate ?: ""
                 _parsedResults.value = MedicalFieldParser.deserializeResults(info.structuredResultsJson)
+                _parsedMedicines.value = MedicalFieldParser.parsePrescriptionMedicines(info.rawText, uid)
             } else {
                 _documentTitle.value = record.title
                 runExtraction(record, force = false)
@@ -121,10 +129,9 @@ class ExtractionReviewViewModel(
     }
 
     fun requestReExtraction() {
-        val uid = authRepository.currentUser?.uid
         val record = _selectedRecord.value
-        if (uid.isNullOrEmpty() || record == null || record.accountUid != uid) {
-            _errorMessage.value = "This record is not available in the current account."
+        if (record == null) {
+            _errorMessage.value = "Record not available."
             return
         }
 
@@ -138,12 +145,7 @@ class ExtractionReviewViewModel(
 
     fun confirmReExtraction() {
         _showReExtractWarning.value = false
-        val uid = authRepository.currentUser?.uid
-        val record = _selectedRecord.value
-        if (uid.isNullOrEmpty() || record == null || record.accountUid != uid) {
-            _errorMessage.value = "This record is not available in the current account."
-            return
-        }
+        val record = _selectedRecord.value ?: return
         runExtraction(record, force = true)
     }
 
@@ -151,14 +153,8 @@ class ExtractionReviewViewModel(
         _showReExtractWarning.value = false
     }
 
-
     fun runExtraction(record: MedicalRecord, force: Boolean = false) {
-        val uid = authRepository.currentUser?.uid
-
-        if (uid.isNullOrEmpty() || record.accountUid != uid) {
-            _errorMessage.value = "Unauthorized extraction request."
-            return
-        }
+        val uid = getCurrentUid()
 
         viewModelScope.launch(dispatcherProvider.main) {
             _isExtracting.value = true
@@ -171,12 +167,10 @@ class ExtractionReviewViewModel(
                 when (extraction) {
                     is ExtractionResult.Success -> {
                         val raw = extraction.rawText
-                        val title = MedicalFieldParser.parseDocumentTitle(
-                            raw,
-                            record.title
-                        )
+                        val title = MedicalFieldParser.parseDocumentTitle(raw, record.title)
                         val date = MedicalFieldParser.parseReportDate(raw) ?: ""
                         val results = MedicalFieldParser.parseTestResults(raw)
+                        val medicines = MedicalFieldParser.parsePrescriptionMedicines(raw, uid)
 
                         val info = ExtractedMedicalInfo(
                             recordId = record.id,
@@ -184,20 +178,20 @@ class ExtractionReviewViewModel(
                             rawText = raw,
                             documentTitle = title,
                             reportDate = date.ifBlank { null },
-                            structuredResultsJson =
-                                MedicalFieldParser.serializeResults(results),
+                            structuredResultsJson = MedicalFieldParser.serializeResults(results),
                             reviewStatus = ExtractedMedicalInfo.STATUS_UNREVIEWED,
                             processedPages = extraction.pagesProcessed
                         )
 
-                        // Save locally before marking extraction as successful.
+                        // Save locally
                         medicalRecordRepository.saveExtractedInfo(info)
 
                         _documentTitle.value = title
                         _reportDate.value = date
                         _parsedResults.value = results
+                        _parsedMedicines.value = medicines
                         _extractedInfo.value = info
-                        _infoMessage.value = "Text extracted successfully. Please review the results."
+                        _infoMessage.value = "Text extracted. Review medications and vitals before saving."
                     }
 
                     is ExtractionResult.Error -> {
@@ -207,8 +201,7 @@ class ExtractionReviewViewModel(
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (exception: Exception) {
-                _errorMessage.value =
-                    "Could not process or save this report. Please try again."
+                _errorMessage.value = "Could not extract data from document. You can add fields manually."
             } finally {
                 _isExtracting.value = false
             }
@@ -251,17 +244,62 @@ class ExtractionReviewViewModel(
         _parsedResults.value = _parsedResults.value.filter { it.id != id }
     }
 
+    fun addMedicine(med: PrescriptionMedicationEntity) {
+        if (med.name.isBlank()) return
+        val current = _parsedMedicines.value.toMutableList()
+        current.add(med)
+        _parsedMedicines.value = current
+    }
+
+    fun addMedicine(name: String, dosage: String, timeSlot: String) {
+        if (name.isBlank()) return
+        val uid = getCurrentUid()
+        addMedicine(
+            PrescriptionMedicationEntity(
+                accountUid = uid,
+                name = name.trim(),
+                dosage = dosage.trim().ifBlank { "As Directed" },
+                timeSlot = timeSlot.trim().ifBlank { "MORNING (08:30)" }
+            )
+        )
+    }
+
+    fun updateMedicine(med: PrescriptionMedicationEntity) {
+        _parsedMedicines.value = _parsedMedicines.value.map {
+            if (it.id == med.id) med else it
+        }
+    }
+
+    fun updateMedicine(index: Int, name: String, dosage: String, timeSlot: String) {
+        val current = _parsedMedicines.value.toMutableList()
+        if (index in current.indices) {
+            val existing = current[index]
+            current[index] = existing.copy(
+                name = name.trim(),
+                dosage = dosage.trim(),
+                timeSlot = timeSlot.trim()
+            )
+            _parsedMedicines.value = current
+        }
+    }
+
+    fun deleteMedicine(id: String) {
+        _parsedMedicines.value = _parsedMedicines.value.filter { it.id != id }
+    }
+
+    fun deleteMedicine(index: Int) {
+        val current = _parsedMedicines.value.toMutableList()
+        if (index in current.indices) {
+            current.removeAt(index)
+            _parsedMedicines.value = current
+        }
+    }
 
     fun saveReviewedInfo(onSuccess: () -> Unit) {
         if (_isSaving.value) return
 
-        val uid = authRepository.currentUser?.uid
-        val record = _selectedRecord.value
-
-        if (uid.isNullOrEmpty() || record == null || record.accountUid != uid) {
-            _errorMessage.value = "This record is not available in the current account."
-            return
-        }
+        val uid = getCurrentUid()
+        val record = _selectedRecord.value ?: return
 
         viewModelScope.launch(dispatcherProvider.main) {
             _isSaving.value = true
@@ -269,39 +307,9 @@ class ExtractionReviewViewModel(
             _infoMessage.value = null
 
             try {
-                // Recheck account ownership before saving.
-                val currentUid = authRepository.currentUser?.uid
-                if (currentUid.isNullOrEmpty() ||
-                    currentUid != uid ||
-                    record.accountUid != currentUid
-                ) {
-                    _errorMessage.value =
-                        "This record is not available in the current account."
-                    return@launch
-                }
-
                 val existing = _extractedInfo.value
-
-                val currentTitle = _documentTitle.value.trim()
-                    .ifBlank { record.title }
-
+                val currentTitle = _documentTitle.value.trim().ifBlank { record.title }
                 val currentDate = _reportDate.value.trim()
-
-                val existingResults = MedicalFieldParser.deserializeResults(
-                    existing?.structuredResultsJson ?: "[]"
-                )
-
-                val isEdited =
-                    existing?.reviewStatus == ExtractedMedicalInfo.STATUS_EDITED ||
-                            _parsedResults.value != existingResults ||
-                            currentTitle != (existing?.documentTitle ?: record.title) ||
-                            currentDate != (existing?.reportDate ?: "")
-
-                val newStatus = if (isEdited) {
-                    ExtractedMedicalInfo.STATUS_EDITED
-                } else {
-                    ExtractedMedicalInfo.STATUS_REVIEWED_AND_SAVED
-                }
 
                 val info = ExtractedMedicalInfo(
                     recordId = record.id,
@@ -309,27 +317,47 @@ class ExtractionReviewViewModel(
                     rawText = existing?.rawText ?: "",
                     documentTitle = currentTitle,
                     reportDate = currentDate.ifBlank { null },
-                    structuredResultsJson =
-                        MedicalFieldParser.serializeResults(_parsedResults.value),
-                    reviewStatus = newStatus,
+                    structuredResultsJson = MedicalFieldParser.serializeResults(_parsedResults.value),
+                    reviewStatus = ExtractedMedicalInfo.STATUS_REVIEWED_AND_SAVED,
                     processedPages = existing?.processedPages ?: 1,
                     updatedAtTimestamp = System.currentTimeMillis()
                 )
 
-                medicalRecordRepository.saveExtractedInfoWithTitleUpdate(
-                    info,
-                    info.documentTitle
-                )
+                // 1. Update record title & extracted info
+                withContext(dispatcherProvider.io) {
+                    medicalRecordRepository.saveExtractedInfoWithTitleUpdate(info, info.documentTitle)
+                }
+
+                // 2. Add medications to MedicationDao so they populate Medicine Screen
+                val dao = medicationDao
+                val medicines = _parsedMedicines.value
+                if (dao != null && medicines.isNotEmpty()) {
+                    withContext(dispatcherProvider.io) {
+                        medicines.forEach { med ->
+                            dao.insertOrUpdate(med.copy(accountUid = uid))
+                        }
+                    }
+                }
+
+                // 3. Extract vitals and add to VitalReadingRepository so they populate Trends & Home
+                val vitals = MedicalFieldParser.extractVitalsFromResults(_parsedResults.value, uid)
+                val vitalRepo = vitalReadingRepository
+                if (vitalRepo != null && vitals.isNotEmpty()) {
+                    withContext(dispatcherProvider.io) {
+                        vitals.forEach { vital ->
+                            vitalRepo.insertReading(vital)
+                        }
+                    }
+                }
 
                 _extractedInfo.value = info
-                _infoMessage.value = "Changes saved."
+                _infoMessage.value = "Data successfully saved! Medicines and vitals updated in your health vault."
                 onSuccess()
 
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
-            } catch (_: Exception) {
-                _errorMessage.value =
-                    "Could not save your changes. Your edits are still available to retry."
+            } catch (e: Exception) {
+                _errorMessage.value = "Could not save your changes: ${e.localizedMessage ?: "Unknown error"}"
             } finally {
                 _isSaving.value = false
             }
