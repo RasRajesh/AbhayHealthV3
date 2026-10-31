@@ -63,10 +63,12 @@ fun AbhayHealthNavHost(
             }
             is AuthState.Authenticated -> {
                 val currentRoute = navController.currentDestination?.route
-                if (currentRoute == NavRoutes.WELCOME || currentRoute == NavRoutes.VERIFY_OTP) {
+                if (currentRoute == NavRoutes.WELCOME || currentRoute == NavRoutes.VERIFY_OTP || currentRoute == NavRoutes.ENTER_PHONE || currentRoute == NavRoutes.ONBOARDING) {
                     profileViewModel.loadProfileForCurrentUser()
                     navController.navigate(NavRoutes.PROFILE_SETUP) {
+                        popUpTo(NavRoutes.ONBOARDING) { inclusive = true }
                         popUpTo(NavRoutes.WELCOME) { inclusive = true }
+                        popUpTo(NavRoutes.ENTER_PHONE) { inclusive = true }
                         popUpTo(NavRoutes.SPLASH) { inclusive = true }
                     }
                 }
@@ -74,7 +76,7 @@ fun AbhayHealthNavHost(
             is AuthState.Unauthenticated -> {
                 val currentRoute = navController.currentDestination?.route
                 if (currentRoute == NavRoutes.MAIN || currentRoute == NavRoutes.PROFILE_EDIT || currentRoute?.startsWith("extraction_review") == true) {
-                    navController.navigate(NavRoutes.WELCOME) {
+                    navController.navigate(NavRoutes.ONBOARDING) {
                         popUpTo(NavRoutes.MAIN) { inclusive = true }
                     }
                 }
@@ -106,29 +108,25 @@ fun AbhayHealthNavHost(
         }
 
         composable(NavRoutes.ONBOARDING) {
-            OnboardingScreen(
-                viewModel = onboardingViewModel,
-                onOnboardingFinished = {
-                    navController.navigate(NavRoutes.WELCOME) {
-                        popUpTo(NavRoutes.ONBOARDING) {
-                            inclusive = true
-                        }
-                    }
-                }
+            EnterPhoneScreen(
+                viewModel = authViewModel,
+                onboardingViewModel = onboardingViewModel,
+                onBackClick = null
             )
         }
 
         composable(NavRoutes.WELCOME) {
-            WelcomeScreen(
-                onContinueClick = {
-                    navController.navigate(NavRoutes.ENTER_PHONE)
-                }
+            EnterPhoneScreen(
+                viewModel = authViewModel,
+                onboardingViewModel = onboardingViewModel,
+                onBackClick = null
             )
         }
 
         composable(NavRoutes.ENTER_PHONE) {
             EnterPhoneScreen(
                 viewModel = authViewModel,
+                onboardingViewModel = onboardingViewModel,
                 onBackClick = {
                     navController.popBackStack()
                 }

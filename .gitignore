@@ -15,3 +15,7 @@ debug.keystore*
 *.zip
 *diagnostic*.txt
 *medicine*.txt
+/app/release/
+*.aab
+*.apk
+mapping.txt

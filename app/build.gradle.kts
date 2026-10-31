@@ -52,6 +52,22 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        resources {
+            excludes += listOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "/META-INF/DEPENDENCIES",
+                "/META-INF/LICENSE",
+                "/META-INF/LICENSE.txt",
+                "/META-INF/license.txt",
+                "/META-INF/NOTICE",
+                "/META-INF/NOTICE.txt",
+                "/META-INF/notice.txt",
+                "/META-INF/ASL2.0",
+                "/META-INF/*.kotlin_module"
+            )
+        }
+    }
 }
 
 dependencies {
@@ -72,14 +88,14 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
 
-    // Hardware-backed Biometric Prompt
-    implementation(libs.biometric)
+    // Hardware-backed Biometric Prompt - Unused (commented for APK size optimization)
+    // implementation(libs.biometric)
 
-    // CameraX for Medical Document & Prescription Scanning
-    implementation(libs.camerax.core)
-    implementation(libs.camerax.camera2)
-    implementation(libs.camerax.lifecycle)
-    implementation(libs.camerax.view)
+    // CameraX - Unused (app uses ActivityResultContracts.OpenDocument with ML Kit OCR)
+    // implementation(libs.camerax.core)
+    // implementation(libs.camerax.camera2)
+    // implementation(libs.camerax.lifecycle)
+    // implementation(libs.camerax.view)
 
     // ML Kit Text Recognition (On-Device OCR)
     implementation(libs.mlkit.text.recognition)

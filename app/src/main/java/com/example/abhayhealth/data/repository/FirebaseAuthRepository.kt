@@ -107,14 +107,14 @@ class FirebaseAuthRepository(
                 val rawMsg = e.localizedMessage ?: ""
                 val errorMessage = when {
                     e is FirebaseTooManyRequestsException || rawMsg.contains("quota", ignoreCase = true) ->
-                        "SMS Quota exceeded. In Firebase Console > Authentication > Phone, configure a Test Phone Number (e.g. +91 9876543210 / 123456) to test without SMS limits."
+                        "SMS service is temporarily busy. Please wait a moment and try again."
                     e is FirebaseAuthInvalidCredentialsException ->
-                        "Invalid phone number format. Please ensure you enter a valid 10-digit number with country code."
+                        "Invalid phone number format. Please ensure you enter a valid 10-digit mobile number."
                     rawMsg.contains("App validation failed", ignoreCase = true) ||
                     rawMsg.contains("app identifier", ignoreCase = true) ||
                     rawMsg.contains("not authorized", ignoreCase = true) ->
-                        "Firebase App Validation Failed: The debug SHA-1/SHA-256 fingerprint is not registered in Firebase Console, or Play Integrity is failing on emulator. Add SHA-1 to Firebase Console, or add a Test Phone Number (e.g. +91 9876543210 / 123456) in Firebase Console > Authentication > Sign-in method > Phone."
-                    else -> e.localizedMessage ?: "Verification failed. Please check your network and Firebase settings."
+                        "Unable to verify security credentials. Please check your network connection and try again."
+                    else -> e.localizedMessage ?: "Verification could not be completed. Please try again."
                 }
                 _authState.value = AuthState.Error(errorMessage)
             }

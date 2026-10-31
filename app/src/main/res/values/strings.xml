@@ -20,7 +20,7 @@
     <string name="onboarding_feat_meds_title">Medication &amp; Prescription Tracker</string>
     <string name="onboarding_feat_meds_desc">Manage prescriptions, track daily medicine dosage, and receive timely intake reminders.</string>
     <string name="onboarding_feat_privacy_title">Private &amp; Local-First</string>
-    <string name="onboarding_feat_privacy_desc">Your health data remains on your phone, completely under your control with zero cloud tracking in P0.</string>
+    <string name="onboarding_feat_privacy_desc">Your health data remains on your phone, completely private and securely stored under your control.</string>
     <string name="onboarding_name_label">Your Name (Optional)</string>
     <string name="onboarding_name_placeholder">e.g. Ananya Sharma</string>
     <string name="onboarding_get_started">Get Started</string>

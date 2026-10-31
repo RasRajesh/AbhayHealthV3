@@ -31,7 +31,7 @@ class GetStartupDestinationUseCase(
                     StartupDestination.ProfileSetup
                 }
             } else {
-                StartupDestination.Welcome
+                StartupDestination.Onboarding
             }
         }
     }
