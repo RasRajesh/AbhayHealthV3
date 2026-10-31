@@ -8,20 +8,24 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.abhayhealth.feature.medicines.MedicationDao
 import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
+import com.example.abhayhealth.feature.symptoms.SymptomLogDao
+import com.example.abhayhealth.feature.symptoms.SymptomLogEntity
 import com.example.abhayhealth.feature.vitals.VitalReadingDao
 import com.example.abhayhealth.feature.vitals.VitalReadingEntity
 
 /**
- * Room Database for local medical record metadata, extracted info, prescription medications, and vital readings.
+ * Room Database for local medical record metadata, extracted info, prescription medications,
+ * vital readings, and daily symptom logs.
  */
 @Database(
     entities = [
         MedicalRecord::class,
         ExtractedMedicalInfo::class,
         PrescriptionMedicationEntity::class,
-        VitalReadingEntity::class
+        VitalReadingEntity::class,
+        SymptomLogEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class MedicalRecordDatabase : RoomDatabase() {
@@ -30,6 +34,7 @@ abstract class MedicalRecordDatabase : RoomDatabase() {
     abstract fun extractedInfoDao(): ExtractedInfoDao
     abstract fun medicationDao(): MedicationDao
     abstract fun vitalReadingDao(): VitalReadingDao
+    abstract fun symptomLogDao(): SymptomLogDao
 
     companion object {
         const val DATABASE_NAME = "abhayhealth_medical_records.db"
@@ -94,6 +99,26 @@ abstract class MedicalRecordDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `symptom_logs` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `accountUid` TEXT NOT NULL,
+                        `symptomName` TEXT NOT NULL,
+                        `severity` TEXT NOT NULL,
+                        `severityScore` INTEGER NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `notes` TEXT NOT NULL,
+                        `triggers` TEXT NOT NULL,
+                        `durationMinutes` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: MedicalRecordDatabase? = null
 
@@ -104,7 +129,7 @@ abstract class MedicalRecordDatabase : RoomDatabase() {
                     MedicalRecordDatabase::class.java,
                     DATABASE_NAME
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

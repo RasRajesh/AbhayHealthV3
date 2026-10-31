@@ -27,6 +27,7 @@ import com.example.abhayhealth.feature.records.MedicalRecordDatabase
 import com.example.abhayhealth.feature.records.MedicalRecordRepository
 import com.example.abhayhealth.feature.records.RecordsViewModel
 import com.example.abhayhealth.feature.splash.SplashViewModel
+import com.example.abhayhealth.feature.symptoms.SymptomLogRepository
 import com.example.abhayhealth.feature.trends.TrendsViewModel
 import com.example.abhayhealth.feature.vitals.VitalReadingRepository
 
@@ -86,7 +87,16 @@ fun AbhayHealthApp(
             patientProfileRepository = patientProfileRepository
         )
     }
-    val trendsViewModel = remember(medicalRecordRepository, authRepository) { TrendsViewModel(medicalRecordRepository, authRepository) }
+    val symptomLogRepository = remember(medicalRecordDatabase) {
+        SymptomLogRepository(medicalRecordDatabase.symptomLogDao())
+    }
+    val trendsViewModel = remember(medicalRecordRepository, authRepository, symptomLogRepository) {
+        TrendsViewModel(
+            medicalRecordRepository = medicalRecordRepository,
+            authRepository = authRepository,
+            symptomLogRepository = symptomLogRepository
+        )
+    }
     val medicinesViewModel = remember(medicalRecordDatabase, authRepository, context) {
         MedicinesViewModel(medicalRecordDatabase.medicationDao(), authRepository, context.applicationContext)
     }

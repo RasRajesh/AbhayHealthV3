@@ -174,4 +174,24 @@
     <string name="export_report_error">Failed to generate PDF report. Please try again.</string>
     <string name="export_report_dialog_header">Doctor Clinical Summary Report</string>
     <string name="export_report_dialog_body">This generates an official AbhayHealth Medical Summary including your profile, active prescriptions, recent vitals, and diagnostic lab results formatted for physician review.</string>
+
+    <!-- Symptom Tracking & Logging Strings -->
+    <string name="trends_tab_symptoms">Symptoms</string>
+    <string name="symptoms_title">Symptom Trends &amp; Logs</string>
+    <string name="symptoms_subtitle">Longitudinal severity patterns &amp; daily health journal</string>
+    <string name="symptoms_btn_log">+ Log Symptom</string>
+    <string name="symptoms_dialog_title">Log Daily Symptom</string>
+    <string name="symptoms_dialog_subtitle">Record symptom intensity, triggers, and notes</string>
+    <string name="symptoms_empty_title">No symptoms recorded yet</string>
+    <string name="symptoms_empty_desc">Track daily symptoms, severity levels, and triggers to analyze health patterns with your doctor.</string>
+    <string name="symptoms_severity_mild">Mild</string>
+    <string name="symptoms_severity_moderate">Moderate</string>
+    <string name="symptoms_severity_severe">Severe</string>
+    <string name="symptoms_severity_critical">Critical</string>
+    <string name="symptoms_label_name">Symptom Name</string>
+    <string name="symptoms_label_severity">Severity Level</string>
+    <string name="symptoms_label_triggers">Triggers &amp; Context</string>
+    <string name="symptoms_label_duration">Duration</string>
+    <string name="symptoms_label_notes">Notes &amp; Observations</string>
+    <string name="symptoms_btn_save">Save to Database</string>
 </resources>

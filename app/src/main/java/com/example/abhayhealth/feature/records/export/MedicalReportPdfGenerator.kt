@@ -13,6 +13,7 @@ import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
 import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.records.MedicalFieldParser
 import com.example.abhayhealth.feature.records.MedicalRecord
+import com.example.abhayhealth.feature.symptoms.SymptomLogEntity
 import com.example.abhayhealth.feature.vitals.VitalReadingEntity
 import java.io.File
 import java.io.FileOutputStream
@@ -33,6 +34,7 @@ class MedicalReportPdfGenerator(private val context: Context) {
         val records: List<MedicalRecord>,
         val extractedInfoMap: Map<Long, ExtractedMedicalInfo>,
         val vitals: List<VitalReadingEntity>,
+        val symptoms: List<SymptomLogEntity> = emptyList(),
         val generatedAt: Long = System.currentTimeMillis()
     )
 

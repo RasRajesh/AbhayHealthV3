@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import com.example.abhayhealth.R
 import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
 import com.example.abhayhealth.core.designsystem.components.EmptyStateContent
+import com.example.abhayhealth.feature.symptoms.AddSymptomDialog
+import com.example.abhayhealth.feature.symptoms.SymptomTrendsComponent
 
 @Composable
 fun TrendsScreen(
@@ -51,13 +53,25 @@ fun TrendsScreen(
     val labTrends by viewModel.labTrends.collectAsState()
     val vitalsTrends by viewModel.vitalsTrends.collectAsState()
     val allTrends by viewModel.biomarkerTrends.collectAsState()
+    val symptoms by viewModel.symptoms.collectAsState()
+    val showAddSymptomDialog by viewModel.showAddSymptomDialog.collectAsState()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabTitles = listOf(
         stringResource(id = R.string.trends_tab_labs),
         stringResource(id = R.string.trends_tab_vitals),
+        stringResource(id = R.string.trends_tab_symptoms),
         stringResource(id = R.string.trends_tab_adherence)
     )
+
+    if (showAddSymptomDialog) {
+        AddSymptomDialog(
+            onDismiss = { viewModel.dismissAddSymptomDialog() },
+            onSave = { name, severity, score, notes, triggers, duration ->
+                viewModel.logSymptom(name, severity, score, notes, triggers, duration)
+            }
+        )
+    }
 
     val displayedTrends = when (selectedTabIndex) {
         0 -> labTrends.ifEmpty { allTrends.filter { it.category == "LABS" } }
@@ -111,30 +125,36 @@ fun TrendsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (displayedTrends.isEmpty()) {
-            LazyColumn(
-                contentPadding = PaddingValues(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
+        when (selectedTabIndex) {
+            2 -> {
+                // Symptom Tracking & Frequency Tab
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        SymptomTrendsComponent(
+                            symptoms = symptoms,
+                            onAddSymptomClick = { viewModel.openAddSymptomDialog() },
+                            onDeleteSymptomClick = { viewModel.deleteSymptom(it) }
                         )
-                    ) {
-                        when (selectedTabIndex) {
-                            0 -> EmptyStateContent(
-                                title = stringResource(id = R.string.trends_empty_labs_title),
-                                description = stringResource(id = R.string.trends_empty_labs_desc),
-                                icon = Icons.Default.Science
+                    }
+                }
+            }
+            3 -> {
+                // Adherence Tab
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
                             )
-                            1 -> EmptyStateContent(
-                                title = stringResource(id = R.string.trends_empty_vitals_title),
-                                description = stringResource(id = R.string.trends_empty_vitals_desc),
-                                icon = Icons.Default.MonitorHeart
-                            )
-                            else -> EmptyStateContent(
+                        ) {
+                            EmptyStateContent(
                                 title = stringResource(id = R.string.trends_empty_adherence_title),
                                 description = stringResource(id = R.string.trends_empty_adherence_desc),
                                 icon = Icons.AutoMirrored.Filled.TrendingUp
@@ -143,16 +163,46 @@ fun TrendsScreen(
                     }
                 }
             }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(
-                    items = displayedTrends,
-                    key = { it.biomarkerName }
-                ) { trend ->
-                    BiomarkerTrendCard(trend = trend)
+            else -> {
+                if (displayedTrends.isEmpty()) {
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                when (selectedTabIndex) {
+                                    0 -> EmptyStateContent(
+                                        title = stringResource(id = R.string.trends_empty_labs_title),
+                                        description = stringResource(id = R.string.trends_empty_labs_desc),
+                                        icon = Icons.Default.Science
+                                    )
+                                    else -> EmptyStateContent(
+                                        title = stringResource(id = R.string.trends_empty_vitals_title),
+                                        description = stringResource(id = R.string.trends_empty_vitals_desc),
+                                        icon = Icons.Default.MonitorHeart
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(
+                            items = displayedTrends,
+                            key = { it.biomarkerName }
+                        ) { trend ->
+                            BiomarkerTrendCard(trend = trend)
+                        }
+                    }
                 }
             }
         }
@@ -201,74 +251,30 @@ private fun BiomarkerTrendCard(trend: BiomarkerTrend) {
                         }
                     }
                 }
-
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = trend.latestValue,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = trend.unit,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            if (trend.referenceRange.isNotBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Ref Range: ${trend.referenceRange}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "${trend.latestValue} ${trend.unit}".trim(),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (!trend.referenceRange.isNull_or_blank()) {
+                Text(
+                    text = "Ref: ${trend.referenceRange}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             Text(
-                text = "Historical Measurements (${trend.points.size})",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "${trend.points.size} records tracked",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
             )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                trend.points.take(5).forEach { point ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(MaterialTheme.colorScheme.primary)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = point.recordDate,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Text(
-                            text = "${point.value} ${point.unit}".trim(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
         }
     }
 }

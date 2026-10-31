@@ -64,12 +64,19 @@ class MedicalReportExportManager(
             emptyList()
         }
 
+        val symptoms = try {
+            com.example.abhayhealth.feature.records.MedicalRecordDatabase.getInstance(context).symptomLogDao().getAllSymptoms(accountUid).first()
+        } catch (_: Exception) {
+            emptyList()
+        }
+
         val reportData = MedicalReportPdfGenerator.ReportData(
             patientProfile = profile,
             medications = medications,
             records = records,
             extractedInfoMap = extractedMap,
             vitals = vitals,
+            symptoms = symptoms,
             generatedAt = System.currentTimeMillis()
         )
 
