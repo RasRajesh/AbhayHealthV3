@@ -241,6 +241,35 @@ class RecordsViewModel(
         }
     }
 
+    fun loadSampleDocument(fileName: String, context: Context, onImported: ((Long) -> Unit)? = null) {
+        viewModelScope.launch(dispatcherProvider.main) {
+            _isImporting.value = true
+            _errorMessage.value = null
+            try {
+                val targetFile = withContext(dispatcherProvider.io) {
+                    val photosDir = File(context.cacheDir, "camera_photos")
+                    if (!photosDir.exists()) photosDir.mkdirs()
+                    val target = File(photosDir, if (fileName.endsWith(".pdf", ignoreCase = true)) "sample_lab_report.pdf" else "sample_prescription.jpg")
+                    context.assets.open("sample_documents/$fileName").use { input ->
+                        target.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    target
+                }
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    targetFile
+                )
+                importDocument(uri, context, onImported)
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to load sample document: ${e.localizedMessage}"
+                _isImporting.value = false
+            }
+        }
+    }
+
     fun openRecord(record: MedicalRecord, context: Context) {
         val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
         val error = DocumentImportManager.openRecord(record, context, uid)

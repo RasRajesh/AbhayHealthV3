@@ -25,7 +25,7 @@ sealed interface ExtractionResult {
 
 object DocumentExtractionEngine {
 
-    const val MAX_PDF_PAGES = 5
+    const val MAX_PDF_PAGES = 15
 
     suspend fun extractText(record: MedicalRecord): ExtractionResult = withContext(Dispatchers.IO) {
         val path = record.localFilePath
