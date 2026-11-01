@@ -41,6 +41,7 @@ data class BiomarkerTrend(
     val referenceRange: String,
     val category: String, // "LABS" or "VITALS"
     val clinicalGuidelineTag: String? = null,
+    val deltaFromPrevious: String? = null,
     val points: List<BiomarkerPoint>
 )
 
@@ -234,6 +235,17 @@ class TrendsViewModel(
                 val latestNum = latest?.numericValue
                 val guidelineTag = evaluateClinicalGuideline(name, latestNum)
 
+                val previous = if (sortedPoints.size >= 2) sortedPoints[sortedPoints.size - 2] else null
+                val deltaStr = if (latestNum != null && previous?.numericValue != null) {
+                    val diff = latestNum - previous.numericValue
+                    val formattedDiff = String.format(Locale.US, "%.1f", kotlin.math.abs(diff))
+                    when {
+                        diff > 0.05 -> "↑ +$formattedDiff ${latest.unit}".trim()
+                        diff < -0.05 -> "↓ -$formattedDiff ${latest.unit}".trim()
+                        else -> "Stable"
+                    }
+                } else null
+
                 BiomarkerTrend(
                     biomarkerName = name,
                     latestValue = latest?.value ?: "--",
@@ -242,6 +254,7 @@ class TrendsViewModel(
                     referenceRange = rangeMap[name] ?: "",
                     category = category,
                     clinicalGuidelineTag = guidelineTag,
+                    deltaFromPrevious = deltaStr,
                     points = sortedPoints
                 )
             }.sortedByDescending { it.points.size }
