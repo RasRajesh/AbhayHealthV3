@@ -1,9 +1,11 @@
 package com.example.abhayhealth.feature.records
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.abhayhealth.domain.model.ParsedMedicalResult
 
 class MedicalFieldParserTest {
 
@@ -249,4 +251,83 @@ class MedicalFieldParserTest {
         assertEquals(16.3, weightVital?.weightKg ?: 0.0, 0.01)
     }
 
+    @Test
+    fun testBiomarkerEvaluationAndOrganSystem() {
+        val normalHb = ParsedMedicalResult(
+            testName = "Haemoglobin (HB)",
+            value = "13.5",
+            unit = "g/dL",
+            referenceRange = "12.0 - 15.0"
+        )
+        assertEquals(com.example.abhayhealth.domain.model.BiomarkerStatus.NORMAL, normalHb.status)
+        assertEquals(com.example.abhayhealth.domain.model.OrganSystem.HEMIC, normalHb.organSystem)
+        assertFalse(normalHb.isOutOfRange)
+
+        val lowHb = ParsedMedicalResult(
+            testName = "Haemoglobin (HB)",
+            value = "9.2",
+            unit = "g/dL",
+            referenceRange = "12.0 - 15.0"
+        )
+        assertEquals(com.example.abhayhealth.domain.model.BiomarkerStatus.LOW, lowHb.status)
+        assertTrue(lowHb.isOutOfRange)
+
+        val highGlucose = ParsedMedicalResult(
+            testName = "GLUCOSE FASTING (FBS)",
+            value = "142",
+            unit = "mg/dL",
+            referenceRange = "70 - 100"
+        )
+        assertEquals(com.example.abhayhealth.domain.model.BiomarkerStatus.HIGH, highGlucose.status)
+        assertEquals(com.example.abhayhealth.domain.model.OrganSystem.METABOLIC, highGlucose.organSystem)
+        assertTrue(highGlucose.isOutOfRange)
+
+        val highChol = ParsedMedicalResult(
+            testName = "TOTAL CHOLESTEROL",
+            value = "240",
+            unit = "mg/dL",
+            referenceRange = "< 200"
+        )
+        assertEquals(com.example.abhayhealth.domain.model.BiomarkerStatus.HIGH, highChol.status)
+        assertEquals(com.example.abhayhealth.domain.model.OrganSystem.CARDIO, highChol.organSystem)
+
+        val renalTest = ParsedMedicalResult(
+            testName = "Serum Creatinine",
+            value = "0.9",
+            unit = "mg/dL",
+            referenceRange = "0.6 - 1.2"
+        )
+        assertEquals(com.example.abhayhealth.domain.model.BiomarkerStatus.NORMAL, renalTest.status)
+        assertEquals(com.example.abhayhealth.domain.model.OrganSystem.RENAL, renalTest.organSystem)
+
+        val qualitativePus = ParsedMedicalResult(
+            testName = "Urine Pus Cells",
+            value = "4-6 /hpf",
+            referenceRange = "0 - 5 /hpf"
+        )
+        assertEquals(com.example.abhayhealth.domain.model.OrganSystem.RENAL, qualitativePus.organSystem)
+
+        val urineProteinAbnormal = ParsedMedicalResult(
+            testName = "Urine Protein",
+            value = "Trace (+)",
+            referenceRange = "Nil"
+        )
+        assertEquals(com.example.abhayhealth.domain.model.BiomarkerStatus.QUALITATIVE_ABNORMAL, urineProteinAbnormal.status)
+        assertTrue(urineProteinAbnormal.isOutOfRange)
+    }
+
+    @Test
+    fun testMedicationAdvisoryHelper() {
+        val calpolGuidance = com.example.abhayhealth.feature.medicines.MedicationAdvisoryHelper.getGuidance("Syp Calpol 250")
+        assertNotNull(calpolGuidance)
+        assertTrue(calpolGuidance!!.foodInstruction.contains("food", ignoreCase = true))
+
+        val zifiGuidance = com.example.abhayhealth.feature.medicines.MedicationAdvisoryHelper.getGuidance("Syp Zifi 100")
+        assertNotNull(zifiGuidance)
+        assertTrue(zifiGuidance!!.tip.contains("Antibiotic", ignoreCase = true))
+
+        val electralGuidance = com.example.abhayhealth.feature.medicines.MedicationAdvisoryHelper.getGuidance("Electral Sachet")
+        assertNotNull(electralGuidance)
+        assertTrue(electralGuidance!!.tip.contains("Rehydration", ignoreCase = true))
+    }
 }

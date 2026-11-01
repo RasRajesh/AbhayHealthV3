@@ -57,6 +57,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.HorizontalDivider
 import com.example.abhayhealth.domain.model.ParsedMedicalResult
+import com.example.abhayhealth.domain.model.BiomarkerStatus
+import com.example.abhayhealth.domain.model.OrganSystem
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -99,6 +103,16 @@ fun MedicalInfographicCard(
         ),
         label = "pulseProgress"
     )
+
+    var selectedOrganSystem by remember { mutableStateOf(OrganSystem.ALL) }
+    val outOfRangeCount = remember(extractedBiomarkers) { extractedBiomarkers.count { it.isOutOfRange } }
+    val displayBiomarkers = remember(extractedBiomarkers, selectedOrganSystem) {
+        if (selectedOrganSystem == OrganSystem.ALL) {
+            extractedBiomarkers
+        } else {
+            extractedBiomarkers.filter { it.organSystem == selectedOrganSystem }
+        }
+    }
 
     Card(
         modifier = modifier
@@ -164,6 +178,41 @@ fun MedicalInfographicCard(
                 }
             }
 
+            // Out-of-Range Clinical Warning Banner
+            if (outOfRangeCount > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF451A03), // Deep Amber/Red
+                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.7f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF59E0B))
+                        )
+                        Text(
+                            text = "⚠ $outOfRangeCount LAB MARKERS REQUIRE PHYSICIAN REVIEW",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.5.sp
+                            ),
+                            color = Color(0xFFFDE68A)
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
             // Central Translucent 3D Silhouette + Connecting Telemetry Canvas
@@ -179,7 +228,8 @@ fun MedicalInfographicCard(
                 TranslucentBodyCanvas(
                     pulse = pulseProgress,
                     neonBlue = neonBlue,
-                    neonCyan = neonCyan
+                    neonCyan = neonCyan,
+                    selectedOrgan = selectedOrganSystem
                 )
 
                 // High-tech overlay coordinates & perspective tags
@@ -189,7 +239,7 @@ fun MedicalInfographicCard(
                         .padding(10.dp)
                 ) {
                     Text(
-                        text = "SYS_ISO // 3D-MODEL",
+                        text = "SYS_ISO // 3D-MODEL [${selectedOrganSystem.code}]",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 9.sp
@@ -267,13 +317,53 @@ fun MedicalInfographicCard(
                 HorizontalDivider(color = cardBorder, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Organ System Filter Chips Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OrganSystem.values().forEach { organ ->
+                        val count = if (organ == OrganSystem.ALL) {
+                            extractedBiomarkers.size
+                        } else {
+                            extractedBiomarkers.count { it.organSystem == organ }
+                        }
+                        val isSelected = selectedOrganSystem == organ
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) neonCyan.copy(alpha = 0.22f) else Color(0xFF131D31),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) neonCyan else Color(0xFF1E293B)
+                            ),
+                            modifier = Modifier.clickable { selectedOrganSystem = organ }
+                        ) {
+                            Text(
+                                text = "${organ.displayName} ($count)",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                ),
+                                color = if (isSelected) neonCyan else Color(0xFF94A3B8),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "EXTRACTED CLINICAL BIOMARKERS",
+                        text = "EXTRACTED CLINICAL BIOMARKERS [${selectedOrganSystem.code}]",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
@@ -282,7 +372,7 @@ fun MedicalInfographicCard(
                         color = neonCyan
                     )
                     Text(
-                        text = "${extractedBiomarkers.size} METRICS",
+                        text = "${displayBiomarkers.size} METRICS",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 9.sp
@@ -299,24 +389,62 @@ fun MedicalInfographicCard(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    extractedBiomarkers.take(15).forEach { bio ->
+                    displayBiomarkers.take(25).forEach { bio ->
+                        val status = bio.status
+                        val statusColor = when (status) {
+                            BiomarkerStatus.CRITICAL_HIGH, BiomarkerStatus.CRITICAL_LOW -> Color(0xFFEF4444)
+                            BiomarkerStatus.HIGH, BiomarkerStatus.LOW, BiomarkerStatus.QUALITATIVE_ABNORMAL -> Color(0xFFF59E0B)
+                            BiomarkerStatus.NORMAL -> Color(0xFF10B981)
+                            else -> Color(0xFF94A3B8)
+                        }
+
+                        val statusBadge = when (status) {
+                            BiomarkerStatus.CRITICAL_HIGH -> "CRIT ▲"
+                            BiomarkerStatus.CRITICAL_LOW -> "CRIT ▼"
+                            BiomarkerStatus.HIGH -> "HIGH ▲"
+                            BiomarkerStatus.LOW -> "LOW ▼"
+                            BiomarkerStatus.QUALITATIVE_ABNORMAL -> "ABN ⚠"
+                            BiomarkerStatus.NORMAL -> "NORM ✓"
+                            else -> ""
+                        }
+
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = Color(0xFF131D31),
-                            border = BorderStroke(1.dp, neonBlue.copy(alpha = 0.35f))
+                            border = BorderStroke(
+                                1.dp,
+                                if (bio.isOutOfRange) statusColor.copy(alpha = 0.7f) else neonBlue.copy(alpha = 0.35f)
+                            ),
+                            modifier = Modifier.clickable { onMetricClick(bio.testName) }
                         ) {
                             Column(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text(
-                                    text = bio.testName.uppercase(),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    ),
-                                    color = Color(0xFF94A3B8)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = bio.testName.uppercase(),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                    if (statusBadge.isNotEmpty()) {
+                                        Text(
+                                            text = statusBadge,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 7.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = statusColor
+                                        )
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${bio.value} ${bio.unit}".trim(),
@@ -324,8 +452,19 @@ fun MedicalInfographicCard(
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold
                                     ),
-                                    color = neonBlue
+                                    color = if (bio.isOutOfRange) statusColor else neonBlue
                                 )
+                                if (bio.referenceRange.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(1.dp))
+                                    Text(
+                                        text = "Ref: ${bio.referenceRange}",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 7.5.sp
+                                        ),
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
                             }
                         }
                     }
@@ -344,7 +483,8 @@ fun MedicalInfographicCard(
 private fun TranslucentBodyCanvas(
     pulse: Float,
     neonBlue: Color,
-    neonCyan: Color
+    neonCyan: Color,
+    selectedOrgan: OrganSystem = OrganSystem.ALL
 ) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
@@ -500,21 +640,36 @@ private fun TranslucentBodyCanvas(
         )
 
         // 6. Biometric Telemetry Locator Nodes with Glowing Beacon Rings
-        // Node 1: Heart (Left chest) -> Heart Rate
+        // Node 1: Heart (Left chest) -> Heart Rate / Cardio
         val heartPos = Offset(cx - 10f, headY + headRadius + 32f)
-        drawBeaconNode(heartPos, Color(0xFFF43F5E), pulse)
+        val heartPulse = if (selectedOrgan == OrganSystem.CARDIO) (pulse * 1.4f).coerceAtMost(1f) else pulse
+        drawBeaconNode(heartPos, Color(0xFFF43F5E), heartPulse)
 
         // Node 2: Abdomen (Metabolic) -> Blood Sugar
         val sugarPos = Offset(cx + 4f, headY + headRadius + 56f)
-        drawBeaconNode(sugarPos, Color(0xFF34D399), pulse)
+        val sugarPulse = if (selectedOrgan == OrganSystem.METABOLIC) (pulse * 1.4f).coerceAtMost(1f) else pulse
+        drawBeaconNode(sugarPos, Color(0xFF34D399), sugarPulse)
 
-        // Node 3: Right Forearm / Wrist -> Blood Pressure
+        // Node 3: Right Forearm / Wrist -> Blood Pressure / Cardio
         val bpPos = Offset(cx + 41f, headY + headRadius + 70f)
-        drawBeaconNode(bpPos, Color(0xFF38BDF8), pulse)
+        val bpPulse = if (selectedOrgan == OrganSystem.CARDIO) (pulse * 1.4f).coerceAtMost(1f) else pulse
+        drawBeaconNode(bpPos, Color(0xFF38BDF8), bpPulse)
 
         // Node 4: Left Arm / Lung -> SpO2
         val spo2Pos = Offset(cx - 28f, headY + headRadius + 36f)
         drawBeaconNode(spo2Pos, Color(0xFF60A5FA), pulse)
+
+        // Node 5: Hepatic / Liver (Right hypochondrium)
+        val liverPos = Offset(cx + 14f, headY + headRadius + 44f)
+        if (selectedOrgan == OrganSystem.HEPATIC || selectedOrgan == OrganSystem.ALL) {
+            drawBeaconNode(liverPos, Color(0xFFF59E0B), if (selectedOrgan == OrganSystem.HEPATIC) (pulse * 1.5f).coerceAtMost(1f) else pulse * 0.7f)
+        }
+
+        // Node 6: Renal / Kidneys (Posterior lumbar)
+        val kidneyPos = Offset(cx - 14f, headY + headRadius + 52f)
+        if (selectedOrgan == OrganSystem.RENAL || selectedOrgan == OrganSystem.ALL) {
+            drawBeaconNode(kidneyPos, Color(0xFFA855F7), if (selectedOrgan == OrganSystem.RENAL) (pulse * 1.5f).coerceAtMost(1f) else pulse * 0.7f)
+        }
 
         // 7. Connector Telemetry Leader Lines from Nodes to Bounds
         // Leader line 1: Blood Pressure (toward bottom right)
@@ -522,7 +677,7 @@ private fun TranslucentBodyCanvas(
             start = bpPos,
             mid = Offset(bpPos.x + 24f, bpPos.y - 12f),
             end = Offset(w - 20f, bpPos.y - 12f),
-            color = Color(0xFF38BDF8).copy(alpha = 0.6f)
+            color = Color(0xFF38BDF8).copy(alpha = if (selectedOrgan == OrganSystem.CARDIO) 0.9f else 0.5f)
         )
 
         // Leader line 2: Heart Rate (toward left)
@@ -530,7 +685,7 @@ private fun TranslucentBodyCanvas(
             start = heartPos,
             mid = Offset(heartPos.x - 30f, heartPos.y - 10f),
             end = Offset(20f, heartPos.y - 10f),
-            color = Color(0xFFF43F5E).copy(alpha = 0.6f)
+            color = Color(0xFFF43F5E).copy(alpha = if (selectedOrgan == OrganSystem.CARDIO) 0.9f else 0.5f)
         )
 
         // Leader line 3: Blood Sugar (toward bottom right)
@@ -538,7 +693,7 @@ private fun TranslucentBodyCanvas(
             start = sugarPos,
             mid = Offset(sugarPos.x + 36f, sugarPos.y + 16f),
             end = Offset(w - 20f, sugarPos.y + 16f),
-            color = Color(0xFF34D399).copy(alpha = 0.6f)
+            color = Color(0xFF34D399).copy(alpha = if (selectedOrgan == OrganSystem.METABOLIC) 0.9f else 0.5f)
         )
 
         // Leader line 4: SpO2 (toward top left)
@@ -546,7 +701,7 @@ private fun TranslucentBodyCanvas(
             start = spo2Pos,
             mid = Offset(spo2Pos.x - 30f, spo2Pos.y + 18f),
             end = Offset(20f, spo2Pos.y + 18f),
-            color = Color(0xFF60A5FA).copy(alpha = 0.6f)
+            color = Color(0xFF60A5FA).copy(alpha = 0.5f)
         )
     }
 }

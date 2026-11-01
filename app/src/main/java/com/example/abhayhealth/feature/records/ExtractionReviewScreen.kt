@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -60,6 +61,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.abhayhealth.R
 import com.example.abhayhealth.domain.model.ParsedMedicalResult
+import com.example.abhayhealth.domain.model.BiomarkerStatus
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -559,12 +561,58 @@ private fun TestResultCard(
     onUpdate: (String, String, String, String) -> Unit,
     onDelete: () -> Unit
 ) {
+    val status = result.status
+    val statusColor = when (status) {
+        BiomarkerStatus.CRITICAL_HIGH, BiomarkerStatus.CRITICAL_LOW -> Color(0xFFEF4444)
+        BiomarkerStatus.HIGH, BiomarkerStatus.LOW, BiomarkerStatus.QUALITATIVE_ABNORMAL -> Color(0xFFF59E0B)
+        BiomarkerStatus.NORMAL -> Color(0xFF10B981)
+        else -> Color.Transparent
+    }
+    val statusLabel = when (status) {
+        BiomarkerStatus.CRITICAL_HIGH -> "CRITICAL HIGH ▲"
+        BiomarkerStatus.CRITICAL_LOW -> "CRITICAL LOW ▼"
+        BiomarkerStatus.HIGH -> "HIGH ▲"
+        BiomarkerStatus.LOW -> "LOW ▼"
+        BiomarkerStatus.QUALITATIVE_ABNORMAL -> "ABNORMAL ⚠"
+        BiomarkerStatus.NORMAL -> "NORMAL ✓"
+        else -> ""
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+            if (statusLabel.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(bottom = 6.dp)
+                ) {
+                    androidx.compose.material3.Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                        color = statusColor.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = statusLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = statusColor,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                    if (result.referenceRange.isNotBlank()) {
+                        Text(
+                            text = "Reference: ${result.referenceRange}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

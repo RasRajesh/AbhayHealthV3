@@ -91,7 +91,9 @@ import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
 import com.example.abhayhealth.core.designsystem.components.AbhayPrimaryButton
 import com.example.abhayhealth.core.designsystem.components.EmptyStateContent
 import com.example.abhayhealth.domain.model.ParsedMedicalResult
+import com.example.abhayhealth.domain.model.BiomarkerStatus
 import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
+import com.example.abhayhealth.feature.medicines.MedicationAdvisoryHelper
 import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.vitals.AddVitalReadingDialog
 import com.example.abhayhealth.feature.vitals.HealthTrendsChartCard
@@ -1082,11 +1084,32 @@ private fun ExtractedInformationSection(
 
 @Composable
 private fun ExtractedBiomarkerRow(biomarker: ParsedMedicalResult) {
+    val status = biomarker.status
+    val statusColor = when (status) {
+        BiomarkerStatus.CRITICAL_HIGH, BiomarkerStatus.CRITICAL_LOW -> androidx.compose.ui.graphics.Color(0xFFEF4444)
+        BiomarkerStatus.HIGH, BiomarkerStatus.LOW, BiomarkerStatus.QUALITATIVE_ABNORMAL -> androidx.compose.ui.graphics.Color(0xFFF59E0B)
+        BiomarkerStatus.NORMAL -> androidx.compose.ui.graphics.Color(0xFF10B981)
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    val statusBadge = when (status) {
+        BiomarkerStatus.CRITICAL_HIGH -> "CRIT ▲"
+        BiomarkerStatus.CRITICAL_LOW -> "CRIT ▼"
+        BiomarkerStatus.HIGH -> "HIGH ▲"
+        BiomarkerStatus.LOW -> "LOW ▼"
+        BiomarkerStatus.QUALITATIVE_ABNORMAL -> "ABN ⚠"
+        BiomarkerStatus.NORMAL -> "NORM ✓"
+        else -> ""
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        border = BorderStroke(
+            if (biomarker.isOutOfRange) 1.dp else 0.5.dp,
+            if (biomarker.isOutOfRange) statusColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -1096,12 +1119,28 @@ private fun ExtractedBiomarkerRow(biomarker: ParsedMedicalResult) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = biomarker.testName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = biomarker.testName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (statusBadge.isNotEmpty()) {
+                        Text(
+                            text = statusBadge,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = statusColor
+                        )
+                    }
+                }
                 if (biomarker.referenceRange.isNotBlank()) {
                     Text(
                         text = "Ref: ${biomarker.referenceRange}",
@@ -1118,7 +1157,7 @@ private fun ExtractedBiomarkerRow(biomarker: ParsedMedicalResult) {
                     text = "${biomarker.value} ${biomarker.unit}".trim(),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = if (biomarker.isOutOfRange) statusColor else MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -1131,6 +1170,8 @@ fun HomeMedicationItemRow(
     onToggleTaken: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val guidance = remember(medication.name) { MedicationAdvisoryHelper.getGuidance(medication.name) }
+
     ElevatedCard(
         modifier = modifier
             .fillMaxWidth()
@@ -1145,80 +1186,98 @@ fun HomeMedicationItemRow(
         ),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(14.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .border(
-                        1.dp,
-                        if (medication.isTaken) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                        else MaterialTheme.colorScheme.outlineVariant,
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    imageVector = if (medication.isTaken) Icons.Default.CheckCircle else Icons.Default.Medication,
-                    contentDescription = null,
-                    tint = if (medication.isTaken) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .border(
+                            1.dp,
+                            if (medication.isTaken) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.outlineVariant,
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (medication.isTaken) Icons.Default.CheckCircle else Icons.Default.Medication,
+                        contentDescription = null,
+                        tint = if (medication.isTaken) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = medication.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = if (medication.isTaken) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = medication.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (medication.isTaken) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = medication.dosage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Text(
+                            text = medication.timeSlot,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                FilledTonalButton(
+                    onClick = onToggleTaken,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = if (medication.isTaken) {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.primaryContainer
+                        }
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = medication.dosage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Text(
-                        text = medication.timeSlot,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
+                        text = if (medication.isTaken) "Taken ✓" else "Take",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            FilledTonalButton(
-                onClick = onToggleTaken,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = if (medication.isTaken) {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.primaryContainer
-                    }
-                ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = if (medication.isTaken) "Taken ✓" else "Take",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            if (guidance != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "💡 ${guidance.foodInstruction}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
