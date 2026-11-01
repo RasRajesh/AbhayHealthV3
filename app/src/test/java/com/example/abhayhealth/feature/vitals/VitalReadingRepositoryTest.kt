@@ -61,19 +61,13 @@ class VitalReadingRepositoryTest {
     }
 
     @Test
-    fun testEnsureBaselineReadings_seedsReadingsWhenEmpty() = runBlocking {
+    fun testEnsureBaselineReadings_doesNotSeedMockData() = runBlocking {
         assertEquals(0, fakeDao.getReadingCount("user_123"))
 
         repository.ensureBaselineReadings("user_123")
 
         val count = fakeDao.getReadingCount("user_123")
-        assertTrue("Expected baseline readings to be seeded", count > 0)
-
-        val bpReadings = repository.getReadingsByType("user_123", VitalType.BLOOD_PRESSURE).first()
-        val weightReadings = repository.getReadingsByType("user_123", VitalType.WEIGHT).first()
-
-        assertEquals(7, bpReadings.size)
-        assertEquals(7, weightReadings.size)
+        assertEquals("Readings must come strictly from uploaded documents or user logs", 0, count)
     }
 
     @Test
