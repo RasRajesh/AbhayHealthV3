@@ -166,8 +166,23 @@ class RecordsViewModel(
                         if (extraction is ExtractionResult.Success) {
                             val raw = extraction.rawText
                             val title = MedicalFieldParser.parseDocumentTitle(raw, savedRecord.title)
+                            val category = MedicalFieldParser.parseDocumentCategory(raw)
                             val date = MedicalFieldParser.parseReportDate(raw) ?: ""
                             val results = MedicalFieldParser.parseTestResults(raw)
+
+                            val parsedTimestamp = if (date.isNotBlank()) {
+                                MedicalFieldParser.parseDateToTimestamp(date) ?: savedRecord.recordDate
+                            } else {
+                                savedRecord.recordDate
+                            }
+
+                            // Update record title and category in database so the records list shows the correct category
+                            val updatedRecord = savedRecord.copy(
+                                title = title,
+                                category = category,
+                                recordDate = parsedTimestamp
+                            )
+                            repo.insertRecord(updatedRecord)
 
                             val info = ExtractedMedicalInfo(
                                 recordId = savedRecord.id,

@@ -188,8 +188,21 @@ object DocumentExtractionEngine {
                 decodeOptions
             ) ?: return ExtractionResult.Error("Failed to decode image file.")
 
+            // Read EXIF orientation to ensure camera photos captured in portrait or landscape are not inverted
+            val exif = try {
+                android.media.ExifInterface(file.absolutePath)
+            } catch (_: Exception) {
+                null
+            }
+            val rotationDegrees = when (exif?.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL)) {
+                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                else -> 0
+            }
+
             try {
-                val inputImage = InputImage.fromBitmap(bitmap, 0)
+                val inputImage = InputImage.fromBitmap(bitmap, rotationDegrees)
                 val visionText = recognizer.process(inputImage).await()
                 val text = visionText.text.trim()
 
