@@ -348,66 +348,6 @@ fun RecordsScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = "Or Test with Sample Documents:",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.loadSampleDocument(
-                                    fileName = "sample_Report_3887d26b.pdf",
-                                    context = context,
-                                    onImported = { recordId -> onReviewClick(recordId) }
-                                )
-                            },
-                            enabled = !isImporting,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(40.dp)
-                                .testTag("load_sample_lab_btn")
-                        ) {
-                            Text(
-                                text = "🧪 Sample Lab Report",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.loadSampleDocument(
-                                    fileName = "WhatsApp_Image_2026-10-17_at_4.19.08_AM_2c9a2541.jpeg",
-                                    context = context,
-                                    onImported = { recordId -> onReviewClick(recordId) }
-                                )
-                            },
-                            enabled = !isImporting,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(40.dp)
-                                .testTag("load_sample_rx_btn")
-                        ) {
-                            Text(
-                                text = "💊 Sample Prescription",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
                 }
             }
         }
