@@ -56,58 +56,67 @@ object MedicalFieldParser {
 
     private val TEST_CATALOG = listOf(
         // Complete Blood Count (CBC)
-        TestDefinition("Hemoglobin", listOf("Hemoglobin", "Haemoglobin", "Hb"), "g/dL", "12.0 - 16.0 g/dL"),
-        TestDefinition("WBC Count", listOf("WBC Count", "WBC", "Total Leucocyte Count", "TLC", "White Blood Cells"), "/cumm", "4,000 - 11,000 /cumm"),
+        TestDefinition("Hemoglobin", listOf("Haemoglobin (HB)", "Haemoglobin", "Hemoglobin", "Hb", "HB"), "g/dL", "12.0 - 16.0 g/dL"),
+        TestDefinition("WBC Count", listOf("Total WBC Count", "WBC Count", "WBC", "Total Leucocyte Count", "TLC", "White Blood Cells"), "cells/cumm", "4,000 - 11,000 cells/cumm"),
         TestDefinition("Platelet Count", listOf("Platelet Count", "Platelets", "Total Platelet Count"), "Lakhs/cumm", "1.50 - 4.50 Lakhs/cumm"),
-        TestDefinition("RBC Count", listOf("RBC Count", "RBC", "Total Red Blood Cells", "Red Blood Cells"), "mill/cumm", "4.5 - 5.5 mill/cumm"),
-        TestDefinition("Packed Cell Volume", listOf("Packed Cell Volume", "PCV", "Hematocrit", "HCT"), "%", "36.0 - 48.0 %"),
-        TestDefinition("MCV", listOf("MCV", "Mean Corpuscular Volume"), "fl", "80.0 - 100.0 fl"),
-        TestDefinition("MCH", listOf("MCH", "Mean Corpuscular Hemoglobin"), "pg", "27.0 - 32.0 pg"),
-        TestDefinition("MCHC", listOf("MCHC"), "g/dL", "32.0 - 36.0 g/dL"),
-        TestDefinition("ESR", listOf("ESR", "Erythrocyte Sedimentation Rate"), "mm/hr", "0 - 20 mm/hr"),
-        TestDefinition("Neutrophils", listOf("Neutrophils", "Polymorphs"), "%", "40 - 75 %"),
-        TestDefinition("Lymphocytes", listOf("Lymphocytes"), "%", "20 - 45 %"),
-        TestDefinition("Eosinophils", listOf("Eosinophils"), "%", "1 - 6 %"),
-        TestDefinition("Monocytes", listOf("Monocytes"), "%", "2 - 10 %"),
+        TestDefinition("RBC Count", listOf("RBC (Red Blood Cell Count)", "RBC Count", "RBC", "Total Red Blood Cells", "Red Blood Cells"), "Million/cmm", "3.8 - 5.5 Million/cmm"),
+        TestDefinition("Packed Cell Volume", listOf("PCV -( Haematocrit-Packed Cell Volume)", "Packed Cell Volume", "PCV", "Hematocrit", "HCT"), "%", "36.0 - 48.0 %"),
+        TestDefinition("MCV", listOf("MCV (Mean Corpuscular Volume)", "MCV", "Mean Corpuscular Volume"), "fl", "80.0 - 101.0 fl"),
+        TestDefinition("MCH", listOf("MCH (Mean Corpuscular Hemoglobin )", "MCH", "Mean Corpuscular Hemoglobin"), "pg", "27.0 - 32.0 pg"),
+        TestDefinition("MCHC", listOf("MCHC (Mean Corpuscular Hemoglobin Concentration)", "MCHC"), "g/dL", "31.5 - 34.5 g/dL"),
+        TestDefinition("ESR", listOf("Erythrocyte Sedimentation Rate(ESR)", "ESR", "Erythrocyte Sedimentation Rate"), "mm/hr", "0 - 20 mm/hr"),
+        TestDefinition("Neutrophils", listOf("Absolute Neutrophil Count", "Neutrophils", "Polymorphs"), "%", "40 - 80 %"),
+        TestDefinition("Lymphocytes", listOf("Absolute Lymphocyte Count", "Lymphocytes"), "%", "20 - 45 %"),
+        TestDefinition("Eosinophils", listOf("Absolute Eosinophil Count", "Eosinophils"), "%", "1 - 6 %"),
+        TestDefinition("Monocytes", listOf("Absolute Monocytes Count", "Monocytes"), "%", "2 - 10 %"),
+        TestDefinition("Basophils", listOf("Absolute Basophils Count", "Basophils"), "%", "0 - 1 %"),
+        TestDefinition("RDW-CV", listOf("RDW-CV(Red Cell Distribution Width-CV)", "RDW-CV", "Red Cell Distribution Width"), "%", "11.6 - 14.0 %"),
+        TestDefinition("RDW-SD", listOf("RDW-SD(Red Cell Distribution Width-SD)", "RDW-SD"), "fl", "39 - 46 fl"),
+        TestDefinition("MPV", listOf("MPV (Mean Platelet Volume)", "MPV", "Mean Platelet Volume"), "fl", "6.5 - 12.0 fl"),
+        TestDefinition("PDW", listOf("PDW(Platelet Distribution Width)", "PDW"), "%", "9 - 14 %"),
 
         // Diabetes & Glycemic Panel
-        TestDefinition("Fasting Blood Glucose", listOf("Fasting Blood Glucose", "Fasting Glucose", "FBS", "Glucose Fasting", "Fasting Blood Sugar"), "mg/dL", "70 - 100 mg/dL"),
+        TestDefinition("Fasting Blood Glucose", listOf("GLUCOSE FASTING (FBS)", "Fasting Blood Glucose", "Fasting Glucose", "FBS", "Glucose Fasting", "Fasting Blood Sugar"), "mg/dL", "70 - 100 mg/dL"),
         TestDefinition("Postprandial Blood Glucose", listOf("Postprandial Blood Glucose", "PPBS", "Post Prandial Glucose", "PP Glucose", "Post Meal Sugar"), "mg/dL", "< 140 mg/dL"),
         TestDefinition("Random Blood Sugar", listOf("Random Blood Sugar", "RBS", "Blood Sugar", "Glucose Random"), "mg/dL", "70 - 140 mg/dL"),
         TestDefinition("HbA1c", listOf("HbA1c", "Glycated Hemoglobin", "Glycosylated Hemoglobin"), "%", "< 5.7 %"),
 
         // Lipid Profile
-        TestDefinition("Total Cholesterol", listOf("Total Cholesterol", "Serum Cholesterol", "Cholesterol"), "mg/dL", "< 200 mg/dL"),
-        TestDefinition("HDL Cholesterol", listOf("HDL Cholesterol", "HDL", "Good Cholesterol"), "mg/dL", "> 40 mg/dL"),
-        TestDefinition("LDL Cholesterol", listOf("LDL Cholesterol", "LDL", "Bad Cholesterol"), "mg/dL", "< 100 mg/dL"),
-        TestDefinition("Triglycerides", listOf("Triglycerides", "TGL", "Serum Triglycerides"), "mg/dL", "< 150 mg/dL"),
-        TestDefinition("VLDL Cholesterol", listOf("VLDL Cholesterol", "VLDL"), "mg/dL", "< 30 mg/dL"),
+        TestDefinition("Total Cholesterol", listOf("CHOLESTEROL TOTAL", "Total Cholesterol", "Serum Cholesterol", "Cholesterol"), "mg/dL", "< 200 mg/dL"),
+        TestDefinition("HDL Cholesterol", listOf("HDL CHOLESTEROL", "HDL Cholesterol", "HDL", "Good Cholesterol"), "mg/dL", "> 40 mg/dL"),
+        TestDefinition("LDL Cholesterol", listOf("LDL CHOLESTEROL", "LDL Cholesterol", "LDL", "Bad Cholesterol"), "mg/dL", "< 100 mg/dL"),
+        TestDefinition("Triglycerides", listOf("TRIGLYCERIDES", "Triglycerides", "TGL", "Serum Triglycerides"), "mg/dL", "< 150 mg/dL"),
+        TestDefinition("VLDL Cholesterol", listOf("VLDL CHOLESTEROL", "VLDL Cholesterol", "VLDL"), "mg/dL", "< 30 mg/dL"),
+        TestDefinition("Non-HDL Cholesterol", listOf("NON-HDL CHOLESTEROL", "Non-HDL Cholesterol"), "mg/dL", "< 130 mg/dL"),
 
         // Kidney Function Test (KFT / RFT)
-        TestDefinition("Serum Creatinine", listOf("Serum Creatinine", "Creatinine", "S. Creatinine"), "mg/dL", "0.6 - 1.2 mg/dL"),
-        TestDefinition("Blood Urea", listOf("Blood Urea", "Urea"), "mg/dL", "15 - 40 mg/dL"),
+        TestDefinition("Serum Creatinine", listOf("CREATININE", "Serum Creatinine", "Creatinine", "S. Creatinine"), "mg/dL", "0.5 - 1.1 mg/dL"),
+        TestDefinition("Blood Urea", listOf("UREA", "Blood Urea", "Urea"), "mg/dL", "13 - 45 mg/dL"),
         TestDefinition("Blood Urea Nitrogen", listOf("Blood Urea Nitrogen", "BUN"), "mg/dL", "7 - 20 mg/dL"),
-        TestDefinition("Uric Acid", listOf("Uric Acid", "Serum Uric Acid"), "mg/dL", "3.5 - 7.2 mg/dL"),
+        TestDefinition("Uric Acid", listOf("URIC ACID", "Uric Acid", "Serum Uric Acid"), "mg/dL", "2.5 - 6.7 mg/dL"),
         TestDefinition("eGFR", listOf("eGFR", "Estimated GFR"), "mL/min", "> 90 mL/min"),
         TestDefinition("Sodium", listOf("Sodium", "Serum Sodium", "Na+"), "mEq/L", "135 - 145 mEq/L"),
         TestDefinition("Potassium", listOf("Potassium", "Serum Potassium", "K+"), "mEq/L", "3.5 - 5.1 mEq/L"),
         TestDefinition("Calcium", listOf("Calcium", "Serum Calcium", "Total Calcium"), "mg/dL", "8.8 - 10.2 mg/dL"),
 
         // Liver Function Test (LFT)
-        TestDefinition("SGOT / AST", listOf("SGOT", "AST", "Aspartate Aminotransferase", "SGOT / AST"), "U/L", "< 40 U/L"),
-        TestDefinition("SGPT / ALT", listOf("SGPT", "ALT", "Alanine Aminotransferase", "SGPT / ALT"), "U/L", "< 45 U/L"),
-        TestDefinition("Alkaline Phosphatase", listOf("Alkaline Phosphatase", "ALP"), "U/L", "44 - 147 U/L"),
-        TestDefinition("Total Bilirubin", listOf("Total Bilirubin", "Bilirubin Total", "S. Bilirubin"), "mg/dL", "0.2 - 1.2 mg/dL"),
-        TestDefinition("Direct Bilirubin", listOf("Direct Bilirubin", "Conjugated Bilirubin"), "mg/dL", "< 0.3 mg/dL"),
-        TestDefinition("Total Protein", listOf("Total Protein", "Serum Protein"), "g/dL", "6.4 - 8.3 g/dL"),
-        TestDefinition("Albumin", listOf("Albumin", "Serum Albumin"), "g/dL", "3.5 - 5.2 g/dL"),
+        TestDefinition("SGOT / AST", listOf("Aspartate aminotransferase(AST/SGOT)", "AST/SGOT", "SGOT", "AST", "Aspartate Aminotransferase"), "U/L", "5 - 30 U/L"),
+        TestDefinition("SGPT / ALT", listOf("Alanine aminotransferase(ALT/SGPT)", "ALT/SGPT", "SGPT", "ALT", "Alanine Aminotransferase"), "U/L", "5 - 35 U/L"),
+        TestDefinition("Alkaline Phosphatase", listOf("ALKALINE PHOSPHATASE", "Alkaline Phosphatase", "ALP"), "U/L", "42 - 98 U/L"),
+        TestDefinition("Total Bilirubin", listOf("BILIRUBIN TOTAL", "Total Bilirubin", "Bilirubin Total", "S. Bilirubin"), "mg/dL", "0.2 - 1.2 mg/dL"),
+        TestDefinition("Direct Bilirubin", listOf("BILIRUBIN DIRECT", "Direct Bilirubin", "Conjugated Bilirubin"), "mg/dL", "0.0 - 0.3 mg/dL"),
+        TestDefinition("Indirect Bilirubin", listOf("BILIRUBIN INDIRECT", "Indirect Bilirubin"), "mg/dL", "0.1 - 0.9 mg/dL"),
+        TestDefinition("Total Protein", listOf("TOTAL PROTEIN", "Total Protein", "Serum Protein"), "g/dL", "6.0 - 8.0 g/dL"),
+        TestDefinition("Albumin", listOf("ALBUMIN", "Albumin", "Serum Albumin"), "g/dL", "3.5 - 5.2 g/dL"),
+        TestDefinition("Globulin", listOf("GLOBULIN", "Globulin"), "g/dL", "2.8 - 3.5 g/dL"),
+        TestDefinition("Gamma GT", listOf("GAMMA GT", "Gamma GT", "GGT"), "U/L", "5 - 35 U/L"),
 
         // Thyroid Profile
-        TestDefinition("TSH", listOf("TSH", "Thyroid Stimulating Hormone", "Ultrasensitive TSH"), "uIU/mL", "0.35 - 4.94 uIU/mL"),
+        TestDefinition("TSH", listOf("TSH (Thyroid-stimulating hormone)-Ultra", "TSH", "Thyroid Stimulating Hormone", "Ultrasensitive TSH"), "uIU/mL", "0.4 - 4.5 uIU/mL"),
         TestDefinition("Free T3", listOf("Free T3", "FT3"), "pg/mL", "1.7 - 4.2 pg/mL"),
         TestDefinition("Free T4", listOf("Free T4", "FT4"), "ng/dL", "0.7 - 1.8 ng/dL"),
-        TestDefinition("Total T3", listOf("Total T3", "T3"), "ng/dL", "80 - 200 ng/dL"),
-        TestDefinition("Total T4", listOf("Total T4", "T4"), "ug/dL", "5.0 - 12.0 ug/dL"),
+        TestDefinition("Total T3", listOf("Total-T3 (Triiodothyronine-T3)", "Total T3", "Total-T3", "T3"), "ng/dL", "70 - 204 ng/dL"),
+        TestDefinition("Total T4", listOf("Total-T4 (Thyroxine T4 )", "Total T4", "Total-T4", "T4"), "ug/dL", "4.5 - 11.7 ug/dL"),
 
         // Vitamins & Inflammatory Markers
         TestDefinition("Vitamin D", listOf("Vitamin D", "25-OH Vitamin D", "Vitamin D3", "25 Hydroxy Vitamin D"), "ng/mL", "30.0 - 100.0 ng/mL"),
@@ -120,27 +129,33 @@ object MedicalFieldParser {
         TestDefinition("Pulse", listOf("Pulse", "Heart Rate", "Pulse Rate"), "BPM", "60 - 100 BPM"),
         TestDefinition("SpO2", listOf("SpO2", "Oxygen Saturation", "O2 Saturation"), "%", "95 - 100 %"),
         TestDefinition("Temperature", listOf("Temperature", "Temp"), "°F", "97.0 - 99.0 °F"),
-        TestDefinition("Weight", listOf("Weight", "Body Weight", "Wt"), "kg", "Target BMI 18.5 - 24.9")
+        TestDefinition("Weight", listOf("Weight", "Body Weight", "Wt", "Wt:"), "kg", "Target BMI 18.5 - 24.9")
     )
 
-    // Standard medical forms prefix
+    // Standard medical forms prefix (supports 1 Syp, 2. Tab, 3) Cap, or Tab)
     private val MEDICINE_FORM_PREFIX = Regex(
-        """(?im)^(?:[0-9]+[\.\)\-]\s*)?(TAB|TABLET|CAP|CAPSULE|SYP|SYRUP|INJ|INJECTION|DROPS|OINT|OINTMENT|GEL|CREAM|SUSP|SUSPENSION|LOTION|INHALER|RESPULES)\.?\s+([A-Za-z0-9\s_+/-]+)""",
+        """(?im)^(?:[0-9]+[\.\)\-]?\s*)?(TAB|TABLET|CAP|CAPSULE|SYP|SYRUP|INJ|INJECTION|DROPS|OINT|OINTMENT|GEL|CREAM|SUSP|SUSPENSION|LOTION|INHALER|RESPULES|SACHET|POWDER)\.?\s+([A-Za-z0-9\s_+/-]+)""",
         RegexOption.IGNORE_CASE
     )
 
-    // Over 160 common medicines across antibiotics, diabetes, cardiac, analgesics, gastro, vitamins
+    // Over 180 common medicines across antibiotics, diabetes, cardiac, analgesics, gastro, vitamins, pediatric
     private val COMMON_DRUGS = listOf(
+        // Pediatric & Antibiotic staples
+        "Calpol", "Zifi", "Electral", "ORS", "Taxim-O", "Taxim", "Cefixime", "Cefpodoxime",
+        "Monocef", "Amikacin", "Enterogermina", "Econorm", "Pedilac", "Zinc", "Zincovit",
+        "Cyclopam", "Colic-Aid", "Omnacortil", "Prednisolone", "Meftal-P", "Ibugesic-Plus",
+        "Crocin-DS", "Augmentin-DDS", "T-Minic", "Solvin", "Maxtra", "Ascoril-LS",
+
         // Analgesics & Antipyretics
-        "Paracetamol", "Dolo", "Calpol", "Crocin", "Combiflam", "Meftal", "Meftal-Spas",
+        "Paracetamol", "Dolo", "Crocin", "Combiflam", "Meftal", "Meftal-Spas",
         "Ibuprofen", "Diclofenac", "Voveran", "Tramadol", "Ultracet", "Aceclofenac",
         "Zerodol", "Zerodol-SP", "Zerodol-P", "Ketorolac", "Naproxen",
 
         // Antibiotics & Anti-Infectives
-        "Amoxicillin", "Augmentin", "Moxikind", "Azithromycin", "Azee", "Cefixime",
-        "Taxim-O", "Ciprofloxacin", "Ciplox", "Levofloxacin", "Levomac", "Ofloxacin",
+        "Amoxicillin", "Augmentin", "Moxikind", "Azithromycin", "Azee",
+        "Ciprofloxacin", "Ciplox", "Levofloxacin", "Levomac", "Ofloxacin",
         "Zanocin", "Metronidazole", "Flagyl", "Doxycycline", "Doxt", "Clindamycin",
-        "Linezolid", "Cephalexin", "Amikacin",
+        "Linezolid", "Cephalexin",
 
         // Blood Pressure & Cardiac
         "Telmisartan", "Telma", "Telma-H", "Telma-AM", "Amlodipine", "Amlong", "Losartan",
@@ -179,7 +194,7 @@ object MedicalFieldParser {
 
         // Vitamins & Supplements
         "Vitamin D3", "Calcirol", "Shelcal", "Calcium", "Neurobion", "Neurobion Forte",
-        "Becosules", "Zincovit", "Limcee", "Supradyn", "Folvite", "Folic Acid",
+        "Becosules", "Limcee", "Supradyn", "Folvite", "Folic Acid",
         "Ferrous Ascorbate", "Orofer", "Evion",
 
         // Blood Thinners
@@ -190,9 +205,9 @@ object MedicalFieldParser {
     fun parseDocumentCategory(rawText: String): String {
         val upper = rawText.uppercase()
         return when {
-            upper.contains("PRESCRIPTION") || upper.contains("RX") || upper.contains("TAB ") || upper.contains("CAP ") || upper.contains("DOSAGE") ->
+            upper.contains("PRESCRIPTION") || upper.contains("RX") || upper.contains("TAB ") || upper.contains("CAP ") || upper.contains("SYP ") || upper.contains("DOSAGE") ->
                 "PRESCRIPTION"
-            upper.contains("PATHOLOGY") || upper.contains("BIOCHEMISTRY") || upper.contains("HAEMATOLOGY") || upper.contains("REFERENCE RANGE") || upper.contains("LABORATORY") ->
+            upper.contains("PATHOLOGY") || upper.contains("BIOCHEMISTRY") || upper.contains("HAEMATOLOGY") || upper.contains("REFERENCE RANGE") || upper.contains("LABORATORY") || upper.contains("TEST REPORT") ->
                 "LAB_REPORT"
             upper.contains("X-RAY") || upper.contains("ULTRASOUND") || upper.contains("MRI") || upper.contains("CT SCAN") || upper.contains("SONOGRAPHY") ->
                 "IMAGING"
@@ -219,7 +234,7 @@ object MedicalFieldParser {
         // Check for doctor or hospital header
         for (line in lines.take(5)) {
             val upper = line.uppercase()
-            if (upper.startsWith("DR.") || upper.contains("CLINIC") || upper.contains("HOSPITAL") || upper.contains("LABORATORY") || upper.contains("DIAGNOSTICS")) {
+            if (upper.startsWith("DR.") || upper.contains("CLINIC") || upper.contains("HOSPITAL") || upper.contains("LABORATORY") || upper.contains("DIAGNOSTICS") || upper.contains("SCANS")) {
                 return line.take(50)
             }
         }
@@ -256,7 +271,7 @@ object MedicalFieldParser {
 
     /**
      * Multi-strategy biomarker extraction from lab reports and medical diagnostics.
-     * Combines tabular line scanning and regex key-value extraction to guarantee 0 missing metrics.
+     * Combines multi-line tabular scanning and regex key-value extraction to guarantee 0 missing metrics.
      */
     fun parseTestResults(rawText: String): List<ParsedMedicalResult> {
         val results = mutableListOf<ParsedMedicalResult>()
@@ -264,10 +279,9 @@ object MedicalFieldParser {
 
         val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
 
-        // Strategy 1: Tabular & Line-by-Line Scanning across TEST_CATALOG
+        // Strategy 1: Tabular & Multi-Line Scanning across TEST_CATALOG
         for (lineIndex in lines.indices) {
             val line = lines[lineIndex]
-            val nextLine = if (lineIndex + 1 < lines.size) lines[lineIndex + 1] else ""
 
             for (testDef in TEST_CATALOG) {
                 val key = testDef.canonicalName.lowercase()
@@ -279,10 +293,7 @@ object MedicalFieldParser {
                 }
 
                 if (matchedAlias != null) {
-                    // Extract value, unit, and reference range from this line or next line
-                    val combinedText = "$line $nextLine"
-                    val parsed = extractTestDetailsFromText(combinedText, matchedAlias, testDef)
-
+                    val parsed = findTestDetailsFromLines(lines, lineIndex, matchedAlias, testDef)
                     if (parsed != null) {
                         seenTests.add(key)
                         results.add(parsed)
@@ -292,9 +303,9 @@ object MedicalFieldParser {
             }
         }
 
-        // Strategy 2: Regex extraction for Blood Pressure, Temperature, Glucose, and any missed tests
+        // Strategy 2: Regex extraction for Blood Pressure, Glucose, CRP, and any missed tests
         val genericPattern = Regex(
-            """(?im)\b(Blood Pressure|BP|Systolic|Diastolic|Pulse|Heart Rate|Temp|Temperature|Weight|SpO2|Oxygen|FBS|PPBS|RBS|HbA1c|Hemoglobin|Hb|CRP|Platelets|Cholesterol|Triglycerides|Creatinine|Bilirubin|Potassium|Sodium|Calcium|Uric Acid|TSH|SGOT|SGPT|WBC|RBC|Urea)\b\s*[:\-=(deg)]*\s*([<>≤≥]?\s*\d+(?:[\/\s.,]\d+)?)\s*([a-zA-Zµμ%/0-9^._-]+)?\s*(\([^)\r\n]+\))?"""
+            """(?im)\b(Blood Pressure|BP|Systolic|Diastolic|Pulse|Heart Rate|Temp|Temperature|Weight|Wt|SpO2|Oxygen|FBS|PPBS|RBS|HbA1c|Hemoglobin|Hb|CRP|Platelets|Cholesterol|Triglycerides|Creatinine|Bilirubin|Potassium|Sodium|Calcium|Uric Acid|TSH|SGOT|SGPT|WBC|RBC|Urea)\b\s*[:\-=(deg)]*\s*([<>≤≥]?\s*\d+(?:[\/\s.,]\d+)?)\s*([a-zA-Zµμ%/0-9^._-]+)?\s*(\([^)\r\n]+\))?"""
         )
 
         for (match in genericPattern.findAll(rawText)) {
@@ -314,6 +325,7 @@ object MedicalFieldParser {
                 rawName.equals("Cholesterol", true) -> "Total Cholesterol"
                 rawName.equals("Creatinine", true) -> "Serum Creatinine"
                 rawName.equals("Bilirubin", true) -> "Total Bilirubin"
+                rawName.equals("Wt", true) -> "Weight"
                 else -> rawName
             }
 
@@ -341,39 +353,82 @@ object MedicalFieldParser {
         return results
     }
 
-    private fun extractTestDetailsFromText(
-        text: String,
+    private fun findTestDetailsFromLines(
+        lines: List<String>,
+        lineIndex: Int,
         matchedAlias: String,
         testDef: TestDefinition
     ): ParsedMedicalResult? {
-        val afterAlias = text.substringAfter(matchedAlias, "").trim()
-        if (afterAlias.isBlank()) return null
+        val currentLine = lines[lineIndex]
+        val afterAlias = currentLine.substringAfter(matchedAlias, "").trim()
 
-        // Match number: e.g. 120/80 or 13.5 or 95 or 7,500 or 1.25
-        val numberRegex = Regex("""[:\-=\s]*([<>≤≥]?\s*\d+(?:[\/.,]\d+)?)\s*([a-zA-Zµμ%/0-9^._-]+)?""")
-        val match = numberRegex.find(afterAlias) ?: return null
-
-        val rawVal = match.groupValues[1].trim()
-        var unit = match.groupValues[2].trim()
-
-        if (rawVal.isBlank()) return null
-
-        if (unit.isBlank() || unit.matches(Regex("""\d+"""))) {
-            unit = testDef.defaultUnit
+        // 1. Try finding number on the same line after alias
+        if (afterAlias.isNotBlank()) {
+            val numberRegex = Regex("""\b([<>≤≥]?\s*\d+(?:[\/.,]\d+)?)\s*([a-zA-Zµμ%/0-9^._-]+)?""")
+            val match = numberRegex.find(afterAlias)
+            if (match != null && match.groupValues[1].isNotBlank()) {
+                val rawVal = match.groupValues[1].trim()
+                var unit = match.groupValues[2].trim().ifBlank { testDef.defaultUnit }
+                val rangeRegex = Regex("""(\(?\d+(?:\.\d+)?\s*[-–to]\s*\d+(?:\.\d+)?\s*(?:[a-zA-Z/%]+)?\)?|[<≤>≥]\s*\d+(?:\.\d+)?)""")
+                val rangeMatch = rangeRegex.find(afterAlias.substringAfter(rawVal))
+                val refRange = rangeMatch?.value?.trim()?.removeSurrounding("(", ")") ?: testDef.standardReferenceRange
+                return ParsedMedicalResult(
+                    id = UUID.randomUUID().toString(),
+                    testName = testDef.canonicalName,
+                    value = rawVal,
+                    unit = unit,
+                    referenceRange = refRange
+                )
+            }
         }
 
-        // Look for reference range pattern (e.g. 12.0 - 15.0 or < 100 or 70 - 110)
-        val rangeRegex = Regex("""(\(?\d+(?:\.\d+)?\s*[-–to]\s*\d+(?:\.\d+)?\s*(?:[a-zA-Z/%]+)?\)?|[<≤>≥]\s*\d+(?:\.\d+)?)""")
-        val rangeMatch = rangeRegex.find(afterAlias.substringAfter(rawVal))
-        val refRange = rangeMatch?.value?.trim()?.removeSurrounding("(", ")") ?: testDef.standardReferenceRange
+        // 2. Look forward up to 4 lines for columnar / multi-row reports (e.g. Aarthi Scans)
+        for (offset in 1..4) {
+            val targetIndex = lineIndex + offset
+            if (targetIndex >= lines.size) break
+            val candidateLine = lines[targetIndex].trim()
+            if (candidateLine.isBlank()) continue
 
-        return ParsedMedicalResult(
-            id = UUID.randomUUID().toString(),
-            testName = testDef.canonicalName,
-            value = rawVal,
-            unit = unit,
-            referenceRange = refRange
-        )
+            val upper = candidateLine.uppercase()
+            // Skip method or specimen rows
+            if (upper.startsWith("(") || upper.startsWith("METHOD") || upper.startsWith("SPECIMEN") || upper.startsWith("NOTE") || upper.startsWith("INVESTIGATION") || upper.startsWith("RESULT")) {
+                continue
+            }
+
+            // If line starts with a number like "9.1 g/dl 12.0-15.0" or "104.0 mg/dL Normal:74-100"
+            val valueLineMatch = Regex("""^([<>≤≥]?\s*\d+(?:[\/.,]\d+)?)\s*([a-zA-Zµμ%/0-9^._-]+)?(?:\s+(.*))?""").find(candidateLine)
+            if (valueLineMatch != null && valueLineMatch.groupValues[1].isNotBlank()) {
+                val rawVal = valueLineMatch.groupValues[1].trim()
+                var unit = valueLineMatch.groupValues[2].trim().ifBlank { testDef.defaultUnit }
+                val rest = valueLineMatch.groupValues[3].trim()
+                val rangeRegex = Regex("""(\(?\d+(?:\.\d+)?\s*[-–to]\s*\d+(?:\.\d+)?\s*(?:[a-zA-Z/%]+)?\)?|[<≤>≥]\s*\d+(?:\.\d+)?|[a-zA-Z]+:\s*\d+[-–]\d+)""")
+                val rangeMatch = rangeRegex.find(rest)
+                val refRange = rangeMatch?.value?.trim()?.removeSurrounding("(", ")") ?: rest.ifBlank { testDef.standardReferenceRange }
+                return ParsedMedicalResult(
+                    id = UUID.randomUUID().toString(),
+                    testName = testDef.canonicalName,
+                    value = rawVal,
+                    unit = unit,
+                    referenceRange = refRange
+                )
+            }
+
+            // Stop if we encounter another test alias
+            if (isAnotherTest(candidateLine, testDef)) {
+                break
+            }
+        }
+
+        return null
+    }
+
+    private fun isAnotherTest(text: String, currentTest: TestDefinition): Boolean {
+        return TEST_CATALOG.any { other ->
+            other.canonicalName != currentTest.canonicalName &&
+            other.aliases.any { alias ->
+                Regex("""\b${Regex.escape(alias)}\b""", RegexOption.IGNORE_CASE).containsMatchIn(text)
+            }
+        }
     }
 
     /**
@@ -390,13 +445,14 @@ object MedicalFieldParser {
         for (i in lines.indices) {
             val line = lines[i]
             var medName: String? = null
+            var dosageHint: String? = null
 
-            // 1. Check for form prefix (e.g. TAB Paracetamol 500mg)
+            // 1. Check for form prefix (e.g. TAB Paracetamol 500mg, 1 Syp Calpol 250)
             val formMatch = MEDICINE_FORM_PREFIX.find(line)
             if (formMatch != null) {
                 val form = formMatch.groupValues[1].uppercase()
                 val rawName = formMatch.groupValues[2].trim()
-                val cleanName = rawName.split(Regex("""(?i)\s+(?:1-0-1|1-0-0|0-0-1|1-1-1|OD|BD|TID|QID|Morning|Night|Before|After|Days|Tab|Cap)\b"""))
+                val cleanName = rawName.split(Regex("""(?i)\s+(?:1-0-1|1-0-0|0-0-1|1-1-1|OD|BD|TID|QID|Morning|Night|Before|After|Days|Tab|Cap|SOS|every)\b"""))
                     .firstOrNull()?.trim() ?: rawName
                 if (cleanName.length >= 2) {
                     medName = "$form $cleanName"
@@ -408,16 +464,19 @@ object MedicalFieldParser {
                     val drugMatch = drugPattern.find(line)
                     if (drugMatch != null) {
                         medName = drugMatch.value
+                        if (line.contains("Sachet", ignoreCase = true) && !medName.contains("Sachet", ignoreCase = true)) {
+                            medName = "$medName Sachet"
+                        }
                         break
                     }
                 }
 
                 // 3. Check for numbered prescription line starting with Rx or 1., 2.
                 if (medName == null) {
-                    val rxMatch = Regex("""^(?:Rx:?|\d+[\.\)])\s*([A-Za-z0-9\s_+/-]+?)(?:\s+(?:1-0-1|1-0-0|0-0-1|1-1-1|OD|BD|TID|QID|Morning|Night|x\s*\d+|\d+\s*days))""", RegexOption.IGNORE_CASE).find(line)
+                    val rxMatch = Regex("""^(?:Rx:?|\d+[\.\)]?)\s*([A-Za-z0-9\s_+/-]+?)(?:\s+(?:1-0-1|1-0-0|0-0-1|1-1-1|OD|BD|TID|QID|Morning|Night|x\s*\d+|\d+\s*days|SOS))""", RegexOption.IGNORE_CASE).find(line)
                     if (rxMatch != null) {
                         val candidate = rxMatch.groupValues[1].trim()
-                        if (candidate.length in 3..40 && !candidate.contains("patient", true) && !candidate.contains("doctor", true)) {
+                        if (candidate.length in 3..40 && !candidate.contains("patient", true) && !candidate.contains("doctor", true) && !candidate.contains("clinic", true)) {
                             medName = candidate
                         }
                     }
@@ -438,10 +497,21 @@ object MedicalFieldParser {
                             contextLine.contains("Post Meal", true) ||
                             contextLine.contains("PC", true)
 
-                    val dosage = when {
+                    // Extract exact dosage quantity (e.g. 5ml, 6ml, 1 Tab, 200ml)
+                    val qtyMatch = Regex("""\b(\d+(?:\.\d+)?\s*(?:ml|mg|tab|cap|sachet|tsp))\b""", RegexOption.IGNORE_CASE).find(contextLine)
+                    val qtyStr = qtyMatch?.value?.trim() ?: ""
+
+                    val timingStr = when {
                         isBeforeFood -> "Before Food"
                         isAfterFood -> "After Food"
+                        contextLine.contains("SOS", true) -> "SOS / When Needed"
                         else -> "As Directed"
+                    }
+
+                    val dosage = when {
+                        qtyStr.isNotBlank() && timingStr != "As Directed" -> "$qtyStr - $timingStr"
+                        qtyStr.isNotBlank() -> qtyStr
+                        else -> timingStr
                     }
 
                     val isMorning = contextLine.contains("Morning", true) ||

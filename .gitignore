@@ -19,3 +19,6 @@ debug.keystore*
 *.aab
 *.apk
 mapping.txt
+.kotlin/
+.aistudio/
+public/
