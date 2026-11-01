@@ -123,22 +123,39 @@ fun HomeScreen(
         stringResource(id = R.string.home_greeting_default)
     }
 
-    val latestBp = remember(vitalReadings) {
+    val latestBp = remember(vitalReadings, extractedBiomarkers) {
         val bp = vitalReadings.firstOrNull { it.type == "BLOOD_PRESSURE" && it.systolic != null && it.diastolic != null }
-        if (bp != null) "${bp.systolic?.toInt()}/${bp.diastolic?.toInt()} mmHg" else "120/80 mmHg"
+        if (bp != null) {
+            "${bp.systolic?.toInt()}/${bp.diastolic?.toInt()} mmHg"
+        } else {
+            val bpBio = extractedBiomarkers.firstOrNull {
+                it.testName.contains("Blood Pressure", ignoreCase = true) || it.testName.equals("BP", ignoreCase = true)
+            }
+            if (bpBio != null) "${bpBio.value} ${bpBio.unit}".trim() else "120/80 mmHg"
+        }
     }
     val latestSugar = remember(extractedBiomarkers) {
-        val sugar = extractedBiomarkers.firstOrNull { it.testName.contains("Glucose", ignoreCase = true) || it.testName.contains("Sugar", ignoreCase = true) }
+        val sugar = extractedBiomarkers.firstOrNull {
+            it.testName.contains("Glucose", ignoreCase = true) || it.testName.contains("Sugar", ignoreCase = true) || it.testName.contains("FBS", ignoreCase = true)
+        }
         if (sugar != null) "${sugar.value} ${sugar.unit}".trim() else "95 mg/dL"
     }
     val latestHr = remember(extractedBiomarkers) {
-        val hr = extractedBiomarkers.firstOrNull { it.testName.contains("Heart", ignoreCase = true) || it.testName.contains("Pulse", ignoreCase = true) }
+        val hr = extractedBiomarkers.firstOrNull {
+            it.testName.contains("Heart", ignoreCase = true) || it.testName.contains("Pulse", ignoreCase = true)
+        }
         if (hr != null) "${hr.value} BPM".trim() else "72 BPM"
     }
     val latestSpo2 = remember(extractedBiomarkers) {
-        val spo2 = extractedBiomarkers.firstOrNull { it.testName.contains("SpO2", ignoreCase = true) || it.testName.contains("Oxygen", ignoreCase = true) }
-        if (spo2 != null) "${spo2.value}%".trim() else "98%"
+        val spo2 = extractedBiomarkers.firstOrNull {
+            it.testName.contains("SpO2", ignoreCase = true) || it.testName.contains("Oxygen", ignoreCase = true)
+        }
+        if (spo2 != null) {
+            val raw = spo2.value.trim()
+            if (raw.endsWith("%")) raw else "$raw%"
+        } else "98%"
     }
+
 
     LazyColumn(
         modifier = modifier
@@ -228,11 +245,13 @@ fun HomeScreen(
                 bloodSugar = latestSugar,
                 heartRate = latestHr,
                 spO2 = latestSpo2,
+                extractedBiomarkers = extractedBiomarkers,
                 onMetricClick = {
                     viewModel.showAddVitalDialog(true)
                 }
             )
         }
+
 
         // 5. Extracted Clinical Information Section (Home screen shows extracted information when available)
         if (extractedBiomarkers.isNotEmpty() || extractedInfos.isNotEmpty()) {

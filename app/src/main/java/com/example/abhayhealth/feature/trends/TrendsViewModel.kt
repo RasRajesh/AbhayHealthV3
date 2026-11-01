@@ -434,7 +434,7 @@ class TrendsViewModel(
 
     private fun extractNumericValue(valStr: String): Double? {
         val cleaned = valStr.replace("<", "").replace(">", "").replace("≤", "").replace("≥", "").trim()
-        val match = Regex("""^(\d+(?:\.\d+)?)""").find(cleaned)
+        val match = Regex("""(\d+(?:\.\d+)?)""").find(cleaned)
         return match?.groupValues?.get(1)?.toDoubleOrNull()
     }
 
@@ -443,13 +443,15 @@ class TrendsViewModel(
         return if (lower.contains("bp") || lower.contains("blood pressure") ||
             lower.contains("temp") || lower.contains("systolic") ||
             lower.contains("diastolic") || lower.contains("pulse") ||
-            lower.contains("heart rate")
+            lower.contains("heart rate") || lower.contains("weight") ||
+            lower.contains("spo2") || lower.contains("oxygen")
         ) {
             "VITALS"
         } else {
             "LABS"
         }
     }
+
 
     private fun evaluateClinicalGuideline(name: String, value: Double?): String? {
         if (value == null) return null

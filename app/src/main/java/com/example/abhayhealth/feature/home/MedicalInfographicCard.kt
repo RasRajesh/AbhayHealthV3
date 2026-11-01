@@ -53,6 +53,10 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.HorizontalDivider
+import com.example.abhayhealth.domain.model.ParsedMedicalResult
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -64,7 +68,8 @@ import com.example.abhayhealth.R
 /**
  * High-tech Medical Infographic Data Visualization.
  * Features a central translucent 3D human body silhouette with isometric perspective,
- * surrounded by modern digital callout boxes for Blood Pressure, Blood Sugar, Heart Rate, and SpO2.
+ * surrounded by modern digital callout boxes for Blood Pressure, Blood Sugar, Heart Rate, and SpO2,
+ * plus interactive telemetry pills for extracted clinical biomarkers.
  */
 @Composable
 fun MedicalInfographicCard(
@@ -72,9 +77,11 @@ fun MedicalInfographicCard(
     bloodSugar: String = "95 mg/dL",
     heartRate: String = "72 BPM",
     spO2: String = "98%",
+    extractedBiomarkers: List<ParsedMedicalResult> = emptyList(),
     onMetricClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+
     val darkSlateBg = Color(0xFF0F172A)
     val neonBlue = Color(0xFF38BDF8)
     val neonCyan = Color(0xFF06B6D4)
@@ -254,9 +261,80 @@ fun MedicalInfographicCard(
                     modifier = Modifier.weight(1f)
                 )
             }
+
+            if (extractedBiomarkers.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = cardBorder, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "EXTRACTED CLINICAL BIOMARKERS",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        ),
+                        color = neonCyan
+                    )
+                    Text(
+                        text = "${extractedBiomarkers.size} METRICS",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp
+                        ),
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    extractedBiomarkers.take(15).forEach { bio ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF131D31),
+                            border = BorderStroke(1.dp, neonBlue.copy(alpha = 0.35f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = bio.testName.uppercase(),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    color = Color(0xFF94A3B8)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${bio.value} ${bio.unit}".trim(),
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = neonBlue
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
+
 
 /**
  * Renders the central translucent 3D human body silhouette with isometric perspective,
