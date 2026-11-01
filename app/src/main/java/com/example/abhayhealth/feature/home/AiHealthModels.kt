@@ -32,6 +32,7 @@ data class AiInsightItem(
 data class AiHealthSummaryUiState(
     val isEnabled: Boolean = false,
     val isLoading: Boolean = false,
+    val hasData: Boolean = false,
     val healthScore: Int = 85,
     val statusTier: HealthStatusTier = HealthStatusTier.STABLE,
     val totalMedications: Int = 0,

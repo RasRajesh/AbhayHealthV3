@@ -124,7 +124,25 @@ fun MainScreen(
                 MeScreen(
                     viewModel = meViewModel,
                     onEditProfileClick = onEditProfileClick,
-                    onSignOutClick = onSignOutClick
+                    onSignOutClick = onSignOutClick,
+                    onNavigateToRecords = {
+                        navController.navigate(NavRoutes.MainTab.RECORDS) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onNavigateToMedicines = {
+                        navController.navigate(NavRoutes.MainTab.MEDICINES) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
         }

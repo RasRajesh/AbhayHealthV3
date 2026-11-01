@@ -9,9 +9,16 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import android.graphics.BitmapFactory
+import java.io.File
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -40,10 +47,13 @@ import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -80,16 +90,20 @@ import com.example.abhayhealth.R
 import com.example.abhayhealth.core.designsystem.components.AbhayHealthBrandLogo
 import com.example.abhayhealth.core.designsystem.components.AbhayPrimaryButton
 import com.example.abhayhealth.core.designsystem.components.EmptyStateContent
+import com.example.abhayhealth.domain.model.ParsedMedicalResult
+import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
+import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.vitals.AddVitalReadingDialog
 import com.example.abhayhealth.feature.vitals.HealthTrendsChartCard
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    onAddRecordClick: () -> Unit,
+    onAddRecordClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val patientProfile by viewModel.patientProfile.collectAsState()
     val patientName by viewModel.patientName.collectAsState()
     val isAiEnabled by viewModel.isAiEnabled.collectAsState()
     val aiSummaryState by viewModel.aiSummaryState.collectAsState()
@@ -99,11 +113,31 @@ fun HomeScreen(
     val vitalReadings by viewModel.vitalReadings.collectAsState()
     val selectedVitalMetric by viewModel.selectedVitalMetric.collectAsState()
     val showAddVitalDialog by viewModel.showAddVitalDialog.collectAsState()
+    val extractedInfos by viewModel.extractedInfos.collectAsState()
+    val extractedBiomarkers by viewModel.extractedBiomarkers.collectAsState()
+    val todayMedications by viewModel.todayMedications.collectAsState()
 
     val greetingText = if (!patientName.isNullOrBlank()) {
         stringResource(id = R.string.home_greeting_user, patientName!!)
     } else {
         stringResource(id = R.string.home_greeting_default)
+    }
+
+    val latestBp = remember(vitalReadings) {
+        val bp = vitalReadings.firstOrNull { it.type == "BLOOD_PRESSURE" && it.systolic != null && it.diastolic != null }
+        if (bp != null) "${bp.systolic?.toInt()}/${bp.diastolic?.toInt()} mmHg" else "120/80 mmHg"
+    }
+    val latestSugar = remember(extractedBiomarkers) {
+        val sugar = extractedBiomarkers.firstOrNull { it.testName.contains("Glucose", ignoreCase = true) || it.testName.contains("Sugar", ignoreCase = true) }
+        if (sugar != null) "${sugar.value} ${sugar.unit}".trim() else "95 mg/dL"
+    }
+    val latestHr = remember(extractedBiomarkers) {
+        val hr = extractedBiomarkers.firstOrNull { it.testName.contains("Heart", ignoreCase = true) || it.testName.contains("Pulse", ignoreCase = true) }
+        if (hr != null) "${hr.value} BPM".trim() else "72 BPM"
+    }
+    val latestSpo2 = remember(extractedBiomarkers) {
+        val spo2 = extractedBiomarkers.firstOrNull { it.testName.contains("SpO2", ignoreCase = true) || it.testName.contains("Oxygen", ignoreCase = true) }
+        if (spo2 != null) "${spo2.value}%".trim() else "98%"
     }
 
     LazyColumn(
@@ -113,7 +147,7 @@ fun HomeScreen(
         contentPadding = PaddingValues(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. Greeting & Brand Header
+        // 1. Greeting & Brand / Profile Header
         item {
             Row(
                 modifier = Modifier
@@ -137,11 +171,28 @@ fun HomeScreen(
                     )
                 }
                 Spacer(modifier = Modifier.width(14.dp))
-                // Official AbhayHealth brand launcher logo
-                AbhayHealthBrandLogo(
-                    size = 46.dp,
-                    elevation = 2.dp
-                )
+                val photoPath = patientProfile?.photoUri
+                val profileBitmap = remember(photoPath) {
+                    if (!photoPath.isNullOrBlank() && File(photoPath).exists()) {
+                        BitmapFactory.decodeFile(photoPath)
+                    } else null
+                }
+                if (profileBitmap != null) {
+                    Image(
+                        bitmap = profileBitmap.asImageBitmap(),
+                        contentDescription = "Profile Photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                    )
+                } else {
+                    AbhayHealthBrandLogo(
+                        size = 46.dp,
+                        elevation = 2.dp
+                    )
+                }
             }
         }
 
@@ -153,10 +204,10 @@ fun HomeScreen(
             )
         }
 
-        // 3. AI Health Intelligence Summary Section (Animated when toggle is ON)
+        // 3. AI Health Intelligence Summary Section (Shown only when toggle is ON and data exists from records)
         item {
             AnimatedVisibility(
-                visible = isAiEnabled,
+                visible = isAiEnabled && aiSummaryState.hasData,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
@@ -170,143 +221,120 @@ fun HomeScreen(
             }
         }
 
-        // 4. Primary Hero Card (Health Longitudinal Timeline)
+        // 4. Professional Medical Infographic Data Visualization (Central 3D Translucent Silhouette & High-Tech Callouts)
         item {
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(id = R.string.home_card_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = stringResource(id = R.string.home_card_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                            lineHeight = 20.sp
-                        )
-                    }
+            MedicalInfographicCard(
+                bloodPressure = latestBp,
+                bloodSugar = latestSugar,
+                heartRate = latestHr,
+                spO2 = latestSpo2,
+                onMetricClick = {
+                    viewModel.showAddVitalDialog(true)
                 }
-            }
+            )
         }
 
-        // 5. Add Health Record Action Button (Smooth pill styling)
-        item {
-            AbhayPrimaryButton(
-                text = stringResource(id = R.string.home_btn_add_record),
-                onClick = onAddRecordClick,
-                icon = Icons.Default.Add,
-                testTag = "home_add_record_btn",
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            )
+        // 5. Extracted Clinical Information Section (Home screen shows extracted information when available)
+        if (extractedBiomarkers.isNotEmpty() || extractedInfos.isNotEmpty()) {
+            item {
+                ExtractedInformationSection(
+                    extractedInfos = extractedInfos,
+                    biomarkers = extractedBiomarkers
+                )
+            }
         }
 
         // 6. Today's Medications Section
         item {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = stringResource(id = R.string.home_section_meds),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                if (isAiEnabled && aiSummaryState.totalMedications > 0) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.home_section_meds),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (todayMedications.isNotEmpty()) {
+                        val takenCount = todayMedications.count { it.isTaken }
                         Text(
-                            text = "${aiSummaryState.takenMedications}/${aiSummaryState.totalMedications} Taken",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            text = "$takenCount/${todayMedications.size} taken",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                EmptyStateContent(
-                    title = stringResource(id = R.string.home_empty_meds_title),
-                    description = stringResource(id = R.string.home_empty_meds_desc),
-                    icon = Icons.Default.Medication
-                )
-            }
-        }
 
-        // 7. Recent Medical Records Section
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(id = R.string.home_section_reports),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                if (isAiEnabled && aiSummaryState.totalRecords > 0) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(12.dp)
+                if (todayMedications.isEmpty()) {
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     ) {
-                        Text(
-                            text = "${aiSummaryState.totalRecords} Archived",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Medication,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(id = R.string.home_no_medicine_scheduled),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = stringResource(id = R.string.home_empty_meds_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        todayMedications.forEach { medication ->
+                            HomeMedicationItemRow(
+                                medication = medication,
+                                onToggleTaken = { viewModel.toggleMedicationTaken(medication.id) }
+                            )
+                        }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                EmptyStateContent(
-                    title = stringResource(id = R.string.home_empty_reports_title),
-                    description = stringResource(id = R.string.home_empty_reports_desc),
-                    icon = Icons.Default.Description
-                )
-            }
         }
 
-        // 8. Health Trends Section (Recharts-inspired Data Visualization)
+        // 7. Health Trends & Vitals Section (Always visible for historical metrics tracking)
         item {
             HealthTrendsChartCard(
                 readings = vitalReadings,
@@ -552,35 +580,12 @@ private fun AiToggleCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = stringResource(id = R.string.home_ai_toggle_label),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isAiEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        ) {
-                            Text(
-                                text = if (isAiEnabled) stringResource(id = R.string.home_ai_badge_active) else stringResource(id = R.string.home_ai_badge_inactive),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isAiEnabled) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = stringResource(id = R.string.home_ai_toggle_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = "AI Assist",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -980,3 +985,223 @@ private fun LabExplainerItem(
         }
     }
 }
+
+@Composable
+private fun ExtractedInformationSection(
+    extractedInfos: List<ExtractedMedicalInfo>,
+    biomarkers: List<ParsedMedicalResult>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Science,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Extracted Information",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = "${biomarkers.size} Extracted Markers",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            val latestDoc = extractedInfos.maxByOrNull { it.updatedAtTimestamp }
+            if (latestDoc != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Source: ${latestDoc.documentTitle} • ${latestDoc.reportDate ?: "Recent"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                biomarkers.forEach { biomarker ->
+                    ExtractedBiomarkerRow(biomarker = biomarker)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExtractedBiomarkerRow(biomarker: ParsedMedicalResult) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = biomarker.testName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (biomarker.referenceRange.isNotBlank()) {
+                    Text(
+                        text = "Ref: ${biomarker.referenceRange}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${biomarker.value} ${biomarker.unit}".trim(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun HomeMedicationItemRow(
+    medication: PrescriptionMedicationEntity,
+    onToggleTaken: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("home_medication_row_${medication.id}"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (medication.isTaken) {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .border(
+                        1.dp,
+                        if (medication.isTaken) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                        else MaterialTheme.colorScheme.outlineVariant,
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (medication.isTaken) Icons.Default.CheckCircle else Icons.Default.Medication,
+                    contentDescription = null,
+                    tint = if (medication.isTaken) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = medication.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = if (medication.isTaken) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = medication.dosage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        text = medication.timeSlot,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            FilledTonalButton(
+                onClick = onToggleTaken,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = if (medication.isTaken) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    }
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = if (medication.isTaken) "Taken ✓" else "Take",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+

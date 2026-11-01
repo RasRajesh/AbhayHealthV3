@@ -1,5 +1,7 @@
 package com.example.abhayhealth.feature.profile
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
@@ -7,14 +9,17 @@ import com.example.abhayhealth.core.common.DispatcherProvider
 import com.example.abhayhealth.domain.model.PatientProfile
 import com.example.abhayhealth.domain.repository.AuthRepository
 import com.example.abhayhealth.domain.repository.PatientProfileRepository
+import com.example.abhayhealth.domain.repository.UserPreferencesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 
 class ProfileViewModel(
     private val profileRepository: PatientProfileRepository,
     private val authRepository: AuthRepository,
+    private val userPreferencesRepository: UserPreferencesRepository? = null,
     private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
 ) : ViewModel() {
 
@@ -73,7 +78,7 @@ class ProfileViewModel(
     }
 
     fun loadProfileForCurrentUser() {
-        val uid = authRepository.currentUser?.uid ?: return
+        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
         viewModelScope.launch(dispatcherProvider.main) {
             profileRepository.getProfile(uid).collect { profile ->
                 if (profile != null) {
@@ -106,7 +111,33 @@ class ProfileViewModel(
     fun onCityChanged(value: String) { _city.value = value }
     fun onStateChanged(value: String) { _state.value = value }
     fun onLanguageChanged(value: String) { _preferredLanguage.value = value }
-    fun onPhotoSelected(uri: String?) { _photoUri.value = uri }
+
+    fun onPhotoSelected(uri: Uri?, context: Context) {
+        if (uri == null) {
+            _photoUri.value = null
+            return
+        }
+        viewModelScope.launch(dispatcherProvider.io) {
+            try {
+                val dir = File(context.filesDir, "profile_photos").apply { mkdirs() }
+                val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+                val photoFile = File(dir, "profile_${uid}.jpg")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    photoFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                _photoUri.value = photoFile.absolutePath
+            } catch (_: Exception) {
+                _photoUri.value = uri.toString()
+            }
+        }
+    }
+
+    fun removePhoto() {
+        _photoUri.value = null
+    }
+
     fun onBloodGroupChanged(value: String) { _bloodGroup.value = value }
     fun onAllergiesChanged(value: String) { _allergies.value = value }
     fun onHealthConditionsChanged(value: String) { _healthConditions.value = value }
@@ -126,12 +157,7 @@ class ProfileViewModel(
     }
 
     fun saveProfile(onSuccess: () -> Unit) {
-        val uid = authRepository.currentUser?.uid
-        if (uid.isNullOrEmpty()) {
-            _validationError.value = "User authentication session missing."
-            return
-        }
-
+        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
         val name = _fullName.value.trim()
         if (name.isBlank()) {
             _validationError.value = "Full name is required to save patient profile."
@@ -158,6 +184,7 @@ class ProfileViewModel(
             )
 
             profileRepository.saveProfile(profile)
+            userPreferencesRepository?.setPatientName(name)
             initialProfile = profile
             _isSaving.value = false
             _saveSuccess.value = true

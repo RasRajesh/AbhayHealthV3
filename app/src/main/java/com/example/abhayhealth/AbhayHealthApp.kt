@@ -62,11 +62,16 @@ fun AbhayHealthApp(
     val splashViewModel = remember(getStartupDestinationUseCase) { SplashViewModel(getStartupDestinationUseCase) }
     val onboardingViewModel = remember(completeOnboardingUseCase) { OnboardingViewModel(completeOnboardingUseCase) }
     val authViewModel = remember(authRepository) { AuthViewModel(authRepository) }
-    val profileViewModel = remember(patientProfileRepository, authRepository) {
-        ProfileViewModel(patientProfileRepository, authRepository)
+    val profileViewModel = remember(patientProfileRepository, authRepository, userPreferencesRepository) {
+        ProfileViewModel(patientProfileRepository, authRepository, userPreferencesRepository)
     }
-    val extractionReviewViewModel = remember(medicalRecordRepository, authRepository) {
-        ExtractionReviewViewModel(medicalRecordRepository, authRepository)
+    val extractionReviewViewModel = remember(medicalRecordRepository, authRepository, medicalRecordDatabase, vitalReadingRepository) {
+        ExtractionReviewViewModel(
+            medicalRecordRepository = medicalRecordRepository,
+            authRepository = authRepository,
+            medicationDao = medicalRecordDatabase.medicationDao(),
+            vitalReadingRepository = vitalReadingRepository
+        )
     }
     val homeViewModel = remember(userPreferencesRepository, authRepository, medicalRecordRepository, medicalRecordDatabase, patientProfileRepository, vitalReadingRepository) {
         HomeViewModel(
@@ -90,11 +95,12 @@ fun AbhayHealthApp(
     val symptomLogRepository = remember(medicalRecordDatabase) {
         SymptomLogRepository(medicalRecordDatabase.symptomLogDao())
     }
-    val trendsViewModel = remember(medicalRecordRepository, authRepository, symptomLogRepository) {
+    val trendsViewModel = remember(medicalRecordRepository, authRepository, symptomLogRepository, vitalReadingRepository) {
         TrendsViewModel(
             medicalRecordRepository = medicalRecordRepository,
             authRepository = authRepository,
-            symptomLogRepository = symptomLogRepository
+            symptomLogRepository = symptomLogRepository,
+            vitalReadingRepository = vitalReadingRepository
         )
     }
     val medicinesViewModel = remember(medicalRecordDatabase, authRepository, context) {

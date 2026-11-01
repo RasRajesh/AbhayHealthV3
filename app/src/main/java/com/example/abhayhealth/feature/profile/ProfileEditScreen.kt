@@ -1,9 +1,12 @@
 package com.example.abhayhealth.feature.profile
 
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,13 +46,18 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import java.io.File
 import com.example.abhayhealth.R
 import com.example.abhayhealth.core.designsystem.components.AbhayHealthTopAppBar
 import com.example.abhayhealth.core.designsystem.components.AbhayPrimaryButton
@@ -78,10 +86,31 @@ fun ProfileEditScreen(
     val isSaving by viewModel.isSaving.collectAsState()
     val validationError by viewModel.validationError.collectAsState()
 
+    val context = LocalContext.current
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
-        viewModel.onPhotoSelected(uri?.toString())
+        viewModel.onPhotoSelected(uri, context)
+    }
+
+    val profileBitmap = remember(photoUri) {
+        val uriStr = photoUri
+        if (uriStr.isNullOrBlank()) null
+        else {
+            try {
+                if (uriStr.startsWith("/")) {
+                    val file = File(uriStr)
+                    if (file.exists()) BitmapFactory.decodeFile(uriStr) else null
+                } else {
+                    val uri = Uri.parse(uriStr)
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 
     val scrollState = rememberScrollState()
@@ -119,23 +148,49 @@ fun ProfileEditScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(80.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
+                            .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(44.dp)
-                        )
+                        if (profileBitmap != null) {
+                            Image(
+                                bitmap = profileBitmap.asImageBitmap(),
+                                contentDescription = "Profile picture",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(50.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    TextButton(onClick = { photoPickerLauncher.launch("image/*") }) {
-                        Text(text = stringResource(id = R.string.profile_change_photo))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }) {
+                            Text(text = if (photoUri != null) "Change Photo" else "Add Photo")
+                        }
+                        if (photoUri != null) {
+                            TextButton(onClick = { viewModel.removePhoto() }) {
+                                Text(
+                                    text = "Remove",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
 
                     if (!userPhone.isNullOrBlank()) {

@@ -9,4 +9,8 @@ interface UserPreferencesRepository {
     suspend fun setPatientName(name: String)
     val isAiSummaryEnabled: Flow<Boolean>
     suspend fun setAiSummaryEnabled(enabled: Boolean)
+    val appLanguage: Flow<String>
+    suspend fun setAppLanguage(language: String)
+    val isMedRemindersEnabled: Flow<Boolean>
+    suspend fun setMedRemindersEnabled(enabled: Boolean)
 }

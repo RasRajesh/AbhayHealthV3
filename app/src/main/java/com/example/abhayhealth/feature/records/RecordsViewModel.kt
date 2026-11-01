@@ -9,6 +9,7 @@ import com.example.abhayhealth.core.common.DispatcherProvider
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.domain.repository.AuthRepository
 import com.example.abhayhealth.domain.repository.PatientProfileRepository
+import com.example.abhayhealth.feature.medicines.MedicationAlarmScheduler
 import com.example.abhayhealth.feature.medicines.MedicationDao
 import com.example.abhayhealth.feature.records.export.ExportReportState
 import com.example.abhayhealth.feature.records.export.MedicalReportExportManager
@@ -70,7 +71,10 @@ class RecordsViewModel(
     }
 
     private fun observeAuthState() {
-        val authRepo = authRepository ?: return
+        val authRepo = authRepository ?: run {
+            observeRecordsForUid("local_user")
+            return
+        }
         viewModelScope.launch(dispatcherProvider.main) {
             authRepo.authState.collectLatest { state ->
                 when (state) {
@@ -78,7 +82,8 @@ class RecordsViewModel(
                         observeRecordsForUid(state.user.uid)
                     }
                     else -> {
-                        clearAllState()
+                        val currentUid = authRepo.currentUser?.uid?.ifBlank { null } ?: "local_user"
+                        observeRecordsForUid(currentUid)
                     }
                 }
             }
@@ -86,12 +91,8 @@ class RecordsViewModel(
     }
 
     fun observeRecords() {
-        val uid = authRepository?.currentUser?.uid
-        if (uid.isNullOrEmpty()) {
-            clearAllState()
-        } else {
-            observeRecordsForUid(uid)
-        }
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        observeRecordsForUid(uid)
     }
 
     private fun observeRecordsForUid(uid: String) {
@@ -130,13 +131,8 @@ class RecordsViewModel(
         _infoMessage.value = null
     }
 
-    fun importDocument(uri: Uri, context: Context) {
-        val uid = authRepository?.currentUser?.uid
-        if (uid.isNullOrEmpty()) {
-            _errorMessage.value = "Please sign in to import medical documents."
-            return
-        }
-
+    fun importDocument(uri: Uri, context: Context, onImported: ((Long) -> Unit)? = null) {
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
         val repo = medicalRecordRepository
         if (repo == null) {
             _errorMessage.value = "Local database unavailable."
@@ -185,19 +181,38 @@ class RecordsViewModel(
                             )
                             repo.saveExtractedInfo(info)
 
-                            // Automatically extract prescription medicines & sync to MedicationDao
+                            // Automatically extract prescription medicines & sync to MedicationDao & alarms
                             val parsedMedicines = MedicalFieldParser.parsePrescriptionMedicines(raw, uid)
                             val dao = medicationDao
                             if (dao != null && parsedMedicines.isNotEmpty()) {
                                 withContext(dispatcherProvider.io) {
                                     parsedMedicines.forEach { med ->
                                         dao.insertOrUpdate(med)
+                                        MedicationAlarmScheduler.scheduleMedicationAlarm(
+                                            context = context,
+                                            medicationId = med.id,
+                                            name = med.name,
+                                            dosage = med.dosage,
+                                            timeSlot = med.timeSlot
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Automatically extract vitals & sync to VitalReadingRepository
+                            val vitals = MedicalFieldParser.extractVitalsFromResults(results, uid)
+                            val vRepo = vitalReadingRepository
+                            if (vRepo != null && vitals.isNotEmpty()) {
+                                withContext(dispatcherProvider.io) {
+                                    vitals.forEach { vital ->
+                                        vRepo.insertReading(vital)
                                     }
                                 }
                             }
                         }
 
                         _infoMessage.value = "Document imported and health data extracted successfully."
+                        onImported?.invoke(savedRecord.id)
                     } catch (_: Exception) {
                         DocumentImportManager.deleteFile(result.localFilePath, context)
                         _errorMessage.value = "Failed to save record to local database."
@@ -212,7 +227,7 @@ class RecordsViewModel(
     }
 
     fun openRecord(record: MedicalRecord, context: Context) {
-        val uid = authRepository?.currentUser?.uid
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
         val error = DocumentImportManager.openRecord(record, context, uid)
         if (error != null) {
             _errorMessage.value = error
@@ -220,8 +235,8 @@ class RecordsViewModel(
     }
 
     fun requestDeleteRecord(record: MedicalRecord) {
-        val uid = authRepository?.currentUser?.uid
-        if (uid.isNullOrEmpty() || record.accountUid != uid) {
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        if (record.accountUid != uid && record.accountUid != "local_user") {
             _errorMessage.value = "Unauthorized delete request."
             return
         }
@@ -234,8 +249,8 @@ class RecordsViewModel(
 
     fun confirmDeleteRecord(context: Context) {
         val record = _recordToDelete.value ?: return
-        val uid = authRepository?.currentUser?.uid
-        if (uid.isNullOrEmpty() || record.accountUid != uid) {
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        if (record.accountUid != uid && record.accountUid != "local_user") {
             _errorMessage.value = "Unauthorized delete request."
             _recordToDelete.value = null
             return
