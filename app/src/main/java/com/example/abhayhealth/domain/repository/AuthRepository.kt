@@ -13,9 +13,9 @@ interface AuthRepository {
     val currentUser: AuthUser?
     val isAuthenticated: Boolean
 
-    fun sendOtp(phoneNumber: String, activity: Activity)
+    fun sendOtp(phoneNumber: String, activity: Activity? = null)
     fun verifyOtp(verificationId: String, code: String)
-    fun resendOtp(phoneNumber: String, activity: Activity, resendToken: Any?)
+    fun resendOtp(phoneNumber: String, activity: Activity? = null, resendToken: Any? = null)
     fun signOut()
     fun deleteAccount(onComplete: (Boolean, String?) -> Unit)
 }

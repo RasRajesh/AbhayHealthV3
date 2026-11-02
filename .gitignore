@@ -22,3 +22,4 @@ mapping.txt
 .kotlin/
 .aistudio/
 public/
+.env

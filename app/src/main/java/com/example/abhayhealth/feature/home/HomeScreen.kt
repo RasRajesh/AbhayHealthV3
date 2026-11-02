@@ -57,6 +57,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -94,6 +96,7 @@ import com.example.abhayhealth.domain.model.ParsedMedicalResult
 import com.example.abhayhealth.domain.model.BiomarkerStatus
 import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
 import com.example.abhayhealth.feature.medicines.MedicationAdvisoryHelper
+import com.example.abhayhealth.feature.medicines.MedicationDailyTimelineGraph
 import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.vitals.AddVitalReadingDialog
 import com.example.abhayhealth.feature.vitals.HealthTrendsChartCard
@@ -215,29 +218,13 @@ fun HomeScreen(
             }
         }
 
-        // 2. AI Intelligence Switch Card
+        // 2. AI Health Assistant Action Button
         item {
-            AiToggleCard(
-                isAiEnabled = isAiEnabled,
-                onToggle = { viewModel.toggleAiSummary(it) }
+            AiAssistActionButton(
+                onClick = {
+                    viewModel.showDialog(AiDialogType.AI_ASSISTANT_MODAL)
+                }
             )
-        }
-
-        // 3. AI Health Intelligence Summary Section (Shown only when toggle is ON and data exists from records)
-        item {
-            AnimatedVisibility(
-                visible = isAiEnabled && aiSummaryState.hasData,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                AiHealthSummaryCard(
-                    state = aiSummaryState,
-                    onRefresh = { viewModel.refreshAiSummary() },
-                    onOpenSafetyAudit = { viewModel.showDialog(AiDialogType.MEDICATION_SAFETY) },
-                    onOpenDoctorBrief = { viewModel.showDialog(AiDialogType.DOCTOR_BRIEF) },
-                    onOpenLabExplainer = { viewModel.showDialog(AiDialogType.LAB_EXPLAINER) }
-                )
-            }
         }
 
         // 4. Professional Medical Infographic Data Visualization (Central 3D Translucent Silhouette & High-Tech Callouts)
@@ -255,21 +242,12 @@ fun HomeScreen(
         }
 
 
-        // 5. Extracted Clinical Information Section (Home screen shows extracted information when available)
-        if (extractedBiomarkers.isNotEmpty() || extractedInfos.isNotEmpty()) {
-            item {
-                ExtractedInformationSection(
-                    extractedInfos = extractedInfos,
-                    biomarkers = extractedBiomarkers
-                )
-            }
-        }
 
-        // 6. Today's Medications Section
+        // 4. Today's Medications Section with Daily Dose Timeline Graph
         item {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -293,53 +271,13 @@ fun HomeScreen(
                     }
                 }
 
-                if (todayMedications.isEmpty()) {
-                    OutlinedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Medication,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = stringResource(id = R.string.home_no_medicine_scheduled),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = stringResource(id = R.string.home_empty_meds_desc),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                } else {
+                // Daily Medication Dose Timeline Visualization
+                MedicationDailyTimelineGraph(
+                    medications = todayMedications,
+                    onToggleTaken = { id -> viewModel.toggleMedicationTaken(id) }
+                )
+
+                if (todayMedications.isNotEmpty()) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -354,20 +292,129 @@ fun HomeScreen(
                 }
             }
         }
-
-        // 7. Health Trends & Vitals Section (Always visible for historical metrics tracking)
-        item {
-            HealthTrendsChartCard(
-                readings = vitalReadings,
-                selectedMetric = selectedVitalMetric,
-                onSelectMetric = { viewModel.selectVitalMetric(it) },
-                onLogReadingClick = { viewModel.showAddVitalDialog(true) }
-            )
-        }
     }
 
     // Interactive AI Dialogs
     when (activeDialog) {
+        AiDialogType.AI_ASSISTANT_MODAL -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissDialog() },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "AI Health Assistant",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Health Status: ${aiSummaryState.statusTier.name}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    Text(
+                                        text = "Score: ${aiSummaryState.healthScore}/100",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = aiSummaryState.summarySubtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Specialized AI Actions",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        // 1. Doctor Brief Action
+                        FilledTonalButton(
+                            onClick = { viewModel.showDialog(AiDialogType.DOCTOR_BRIEF) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.HealthAndSafety, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Generate Doctor Consult Brief", fontWeight = FontWeight.SemiBold)
+                        }
+
+                        // 2. Medication Safety Action
+                        FilledTonalButton(
+                            onClick = { viewModel.showDialog(AiDialogType.MEDICATION_SAFETY) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Medication Safety Audit", fontWeight = FontWeight.SemiBold)
+                        }
+
+                        // 3. Lab Explainer Action
+                        FilledTonalButton(
+                            onClick = { viewModel.showDialog(AiDialogType.LAB_EXPLAINER) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Explain Medical Lab Reports", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.refreshAiSummary()
+                            viewModel.dismissDialog()
+                        }
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Refresh AI Analysis")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissDialog() }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+
         AiDialogType.DOCTOR_BRIEF -> {
             AlertDialog(
                 onDismissRequest = { viewModel.dismissDialog() },
@@ -552,26 +599,21 @@ fun HomeScreen(
 }
 
 @Composable
-private fun AiToggleCard(
-    isAiEnabled: Boolean,
-    onToggle: (Boolean) -> Unit,
+private fun AiAssistActionButton(
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .testTag("home_ai_toggle_card"),
+            .testTag("home_ai_assist_button"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isAiEnabled) {
-                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-            }
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
         ),
-        border = if (isAiEnabled) {
-            BorderStroke(1.5.dp, MaterialTheme.colorScheme.tertiary)
-        } else null
+        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
@@ -586,14 +628,14 @@ private fun AiToggleCard(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = if (isAiEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceVariant,
+                    color = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.size(42.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "AI Sparkle",
-                            tint = if (isAiEnabled) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            contentDescription = "AI Assist",
+                            tint = MaterialTheme.colorScheme.onTertiary,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -601,32 +643,40 @@ private fun AiToggleCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Text(
-                    text = "AI Assist",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Switch(
-                checked = isAiEnabled,
-                onCheckedChange = onToggle,
-                modifier = Modifier.testTag("home_ai_switch"),
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onTertiary,
-                    checkedTrackColor = MaterialTheme.colorScheme.tertiary
-                ),
-                thumbContent = {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                Column {
+                    Text(
+                        text = "AI Health Assistant",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Clinical summaries, safety audit & doctor consult brief",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            FilledTonalButton(
+                onClick = onClick,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag("home_ai_assist_open_btn")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Open", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -634,6 +684,7 @@ private fun AiToggleCard(
 @Composable
 private fun AiHealthSummaryCard(
     state: AiHealthSummaryUiState,
+    onSelectScope: (AiSummaryScope, Long?) -> Unit = { _, _ -> },
     onRefresh: () -> Unit,
     onOpenSafetyAudit: () -> Unit,
     onOpenDoctorBrief: () -> Unit,
@@ -703,6 +754,44 @@ private fun AiHealthSummaryCard(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+            }
+
+            // Scope Selector Chips (Total Health vs Specific Report)
+            if (state.availableReports.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = state.selectedScope == AiSummaryScope.TOTAL_HEALTH,
+                        onClick = { onSelectScope(AiSummaryScope.TOTAL_HEALTH, null) },
+                        label = { Text("Total Health") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    )
+                    state.availableReports.forEach { report ->
+                        val isSelected = state.selectedScope == AiSummaryScope.SPECIFIC_REPORT && state.selectedReportId == report.recordId
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onSelectScope(AiSummaryScope.SPECIFIC_REPORT, report.recordId) },
+                            label = { Text(report.title.take(18)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (report.isPrescription) Icons.Default.Medication else Icons.Default.Description,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        )
                     }
                 }
             }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
 import com.example.abhayhealth.core.common.DispatcherProvider
 import com.example.abhayhealth.domain.model.AuthState
+import com.example.abhayhealth.domain.model.BiomarkerStatus
 import com.example.abhayhealth.domain.model.ParsedMedicalResult
 import com.example.abhayhealth.domain.model.PatientProfile
 import com.example.abhayhealth.domain.repository.AuthRepository
@@ -61,6 +62,20 @@ class HomeViewModel(
     private val _aiSummaryState = MutableStateFlow(AiHealthSummaryUiState())
     val aiSummaryState: StateFlow<AiHealthSummaryUiState> = _aiSummaryState.asStateFlow()
 
+    private val _selectedAiScope = MutableStateFlow(AiSummaryScope.TOTAL_HEALTH)
+    val selectedAiScope: StateFlow<AiSummaryScope> = _selectedAiScope.asStateFlow()
+
+    private val _selectedAiReportId = MutableStateFlow<Long?>(null)
+    val selectedAiReportId: StateFlow<Long?> = _selectedAiReportId.asStateFlow()
+
+    private var lastSnapshot: HealthDataSnapshot? = null
+
+    fun selectAiSummaryScope(scope: AiSummaryScope, reportId: Long? = null) {
+        _selectedAiScope.value = scope
+        _selectedAiReportId.value = reportId
+        lastSnapshot?.let { synthesizeAiIntelligence(it) }
+    }
+
     private val _activeDialog = MutableStateFlow(AiDialogType.NONE)
     val activeDialog: StateFlow<AiDialogType> = _activeDialog.asStateFlow()
 
@@ -115,6 +130,15 @@ class HomeViewModel(
             val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
             withContext(dispatcherProvider.io) {
                 medicationDao?.toggleDoseTaken(id, uid)
+            }
+        }
+    }
+
+    fun updateMedicationTime(id: String, newTimeSlot: String) {
+        viewModelScope.launch(dispatcherProvider.main) {
+            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+            withContext(dispatcherProvider.io) {
+                medicationDao?.updateMedicationTime(id, uid, newTimeSlot.trim())
             }
         }
     }
@@ -206,6 +230,7 @@ class HomeViewModel(
                     profile = profile
                 )
             }.collectLatest { snapshot ->
+                lastSnapshot = snapshot
                 synthesizeAiIntelligence(snapshot)
             }
         }
@@ -215,180 +240,363 @@ class HomeViewModel(
         viewModelScope.launch(dispatcherProvider.default) {
             _aiSummaryState.value = _aiSummaryState.value.copy(isLoading = true)
 
-            // Extract vital insights
+            val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+
+            // 1. Build Available Reports list from uploaded documents
+            val availableReports = snapshot.records.map { record ->
+                val extracted = snapshot.extractedInfos.firstOrNull { it.recordId == record.id }
+                val biomarkers = extracted?.let { MedicalFieldParser.deserializeResults(it.structuredResultsJson) } ?: emptyList()
+                val abnormalCount = biomarkers.count { it.isOutOfRange }
+                val dateStr = if (!extracted?.reportDate.isNullOrBlank()) {
+                    extracted!!.reportDate!!
+                } else {
+                    sdf.format(Date(record.recordDate))
+                }
+                val isPrescription = record.category.contains("PRESCRIPTION", ignoreCase = true) ||
+                        record.title.contains("prescription", ignoreCase = true)
+                AiReportOption(
+                    recordId = record.id,
+                    title = record.title.ifBlank { extracted?.documentTitle ?: "Report #${record.id}" },
+                    date = dateStr,
+                    labOrDoctorName = null,
+                    biomarkerCount = biomarkers.size,
+                    abnormalCount = abnormalCount,
+                    isPrescription = isPrescription
+                )
+            }
+
+            val currentScope = _selectedAiScope.value
+            val selectedReportId = _selectedAiReportId.value
+
             val totalMeds = snapshot.medications.size
             val takenMeds = snapshot.medications.count { it.isTaken }
             val adherence = if (totalMeds > 0) (takenMeds * 100) / totalMeds else 100
-
-            // Find next upcoming untaken medication
             val nextMed = snapshot.medications.firstOrNull { !it.isTaken }
 
-            // Extract latest record & structured lab results
-            val latestRecord = snapshot.records.maxByOrNull { it.createdAtTimestamp }
-            val latestExtracted = snapshot.extractedInfos.maxByOrNull { it.updatedAtTimestamp }
+            val profileConditions = snapshot.profile?.healthConditions
+            val profileAllergies = snapshot.profile?.allergies
+            val timeFormatter = SimpleDateFormat("h:mm a", Locale.getDefault())
+            val formattedTime = timeFormatter.format(Date())
 
-            val parsedResults = latestExtracted?.let {
-                MedicalFieldParser.deserializeResults(it.structuredResultsJson)
-            } ?: emptyList()
+            if (currentScope == AiSummaryScope.TOTAL_HEALTH || availableReports.isEmpty()) {
+                // --- 1. TOTAL HEALTH SUMMARY (Whole health across all reports & documents) ---
+                val allBiomarkers = snapshot.extractedInfos.flatMap { info ->
+                    MedicalFieldParser.deserializeResults(info.structuredResultsJson)
+                }
+                val abnormalMarkers = allBiomarkers.filter { it.isOutOfRange }
+                val totalAbnormal = abnormalMarkers.size
 
-            // Calculate overall health score
-            var score = 85
-            if (totalMeds > 0) {
-                if (adherence >= 80) score += 5 else score -= 10
-            }
-            if (snapshot.records.isNotEmpty()) {
-                score += 5
-            }
-            if (snapshot.profile?.allergies.isNullOrBlank().not()) {
-                // Monitored with registered allergies
-                score += 2
-            }
-            score = score.coerceIn(50, 98)
+                var score = 88
+                if (totalMeds > 0) {
+                    if (adherence >= 80) score += 4 else score -= 8
+                }
+                if (snapshot.records.isNotEmpty()) score += 4
+                score -= (totalAbnormal * 3).coerceAtMost(25)
+                score = score.coerceIn(50, 98)
 
-            val statusTier = when {
-                score >= 88 -> HealthStatusTier.OPTIMAL
-                score >= 70 -> HealthStatusTier.STABLE
-                else -> HealthStatusTier.ATTENTION_NEEDED
-            }
+                val statusTier = when {
+                    score >= 88 -> HealthStatusTier.OPTIMAL
+                    score >= 70 -> HealthStatusTier.STABLE
+                    else -> HealthStatusTier.ATTENTION_NEEDED
+                }
 
-            // Build smart insights list
-            val insights = mutableListOf<AiInsightItem>()
+                val insights = mutableListOf<AiInsightItem>()
 
-            // Medication Insight
-            if (totalMeds > 0) {
-                if (takenMeds == totalMeds) {
-                    insights.add(
-                        AiInsightItem(
-                            id = UUID.randomUUID().toString(),
-                            title = "Full Medication Adherence Today",
-                            description = "All $totalMeds prescribed doses have been marked as taken. Excellent adherence protects against relapse.",
-                            category = AiInsightCategory.MEDICATION,
-                            severity = AiSeverity.POSITIVE
+                // Overall adherence insight
+                if (totalMeds > 0) {
+                    if (takenMeds == totalMeds) {
+                        insights.add(
+                            AiInsightItem(
+                                id = UUID.randomUUID().toString(),
+                                title = "Full Medication Adherence Today",
+                                description = "All $totalMeds prescribed doses have been marked as taken. Excellent adherence protects against relapse.",
+                                category = AiInsightCategory.MEDICATION,
+                                severity = AiSeverity.POSITIVE
+                            )
                         )
-                    )
+                    } else {
+                        val pendingCount = totalMeds - takenMeds
+                        insights.add(
+                            AiInsightItem(
+                                id = UUID.randomUUID().toString(),
+                                title = "Daily Regimen: $pendingCount Doses Pending",
+                                description = "Next dose: ${nextMed?.name ?: "Scheduled medicine"} at ${nextMed?.timeSlot ?: "prescribed time"}.",
+                                category = AiInsightCategory.MEDICATION,
+                                severity = AiSeverity.INFO
+                            )
+                        )
+                    }
                 } else {
-                    val pendingCount = totalMeds - takenMeds
                     insights.add(
                         AiInsightItem(
                             id = UUID.randomUUID().toString(),
-                            title = "Daily Regimen: $pendingCount Doses Pending",
-                            description = "Next dose: ${nextMed?.name ?: "Scheduled medicine"} at ${nextMed?.timeSlot ?: "prescribed time"}.",
+                            title = "No Active Prescriptions Logged",
+                            description = "Add medicines from your prescription to track daily timings and automatic dose reminders.",
                             category = AiInsightCategory.MEDICATION,
                             severity = AiSeverity.INFO
                         )
                     )
                 }
-            } else {
-                insights.add(
-                    AiInsightItem(
-                        id = UUID.randomUUID().toString(),
-                        title = "No Active Prescriptions Logged",
-                        description = "Add medicines from your prescription to track daily timings and automatic dose reminders.",
-                        category = AiInsightCategory.MEDICATION,
-                        severity = AiSeverity.INFO
-                    )
-                )
-            }
 
-            // Clinical Record & Lab Insight
-            if (parsedResults.isNotEmpty()) {
-                val testsSummary = parsedResults.take(3).joinToString(", ") { "${it.testName}: ${it.value} ${it.unit}".trim() }
-                insights.add(
-                    AiInsightItem(
-                        id = UUID.randomUUID().toString(),
-                        title = "Recent Lab Markers Mapped",
-                        description = testsSummary,
-                        category = AiInsightCategory.LAB_VITAL,
-                        severity = AiSeverity.INFO
+                // Total health lab & biomarker summary
+                if (allBiomarkers.isNotEmpty()) {
+                    val summaryText = if (totalAbnormal > 0) {
+                        "$totalAbnormal marker(s) flagged out of normal range across ${snapshot.records.size} documents: " +
+                                abnormalMarkers.take(3).joinToString(", ") { "${it.testName}: ${it.value} ${it.unit}" }
+                    } else {
+                        "All ${allBiomarkers.size} biomarkers analyzed across ${snapshot.records.size} documents meet standard normal ranges."
+                    }
+                    insights.add(
+                        AiInsightItem(
+                            id = UUID.randomUUID().toString(),
+                            title = "Total Health Biomarkers Analyzed (${allBiomarkers.size})",
+                            description = summaryText,
+                            category = AiInsightCategory.LAB_VITAL,
+                            severity = if (totalAbnormal > 0) AiSeverity.WARNING else AiSeverity.POSITIVE
+                        )
                     )
+                } else if (snapshot.records.isNotEmpty()) {
+                    insights.add(
+                        AiInsightItem(
+                            id = UUID.randomUUID().toString(),
+                            title = "Timeline Records Verified",
+                            description = "${snapshot.records.size} medical documents stored securely on your device.",
+                            category = AiInsightCategory.LAB_VITAL,
+                            severity = AiSeverity.POSITIVE
+                        )
+                    )
+                } else {
+                    insights.add(
+                        AiInsightItem(
+                            id = UUID.randomUUID().toString(),
+                            title = "Start Your Health Timeline",
+                            description = "Upload a lab report or prescription scan. The AI extraction engine will automatically parse biomarkers and dates.",
+                            category = AiInsightCategory.LAB_VITAL,
+                            severity = AiSeverity.INFO
+                        )
+                    )
+                }
+
+                // Allergy Shield
+                if (!profileAllergies.isNullOrBlank()) {
+                    insights.add(
+                        AiInsightItem(
+                            id = UUID.randomUUID().toString(),
+                            title = "Allergy Shield Active",
+                            description = "Registered allergies: $profileAllergies. Current scheduled medications screened with zero adverse conflicts.",
+                            category = AiInsightCategory.ALLERGY_SAFETY,
+                            severity = AiSeverity.POSITIVE
+                        )
+                    )
+                }
+
+                val recommendations = mutableListOf<String>()
+                if (!profileConditions.isNullOrBlank()) {
+                    val lower = profileConditions.lowercase()
+                    if (lower.contains("diabet") || lower.contains("sugar")) {
+                        recommendations.add("Check post-meal blood glucose 2 hours after your primary meal.")
+                    }
+                    if (lower.contains("hyper") || lower.contains("bp") || lower.contains("hypertension")) {
+                        recommendations.add("Maintain low sodium dietary intake and log blood pressure readings twice weekly.")
+                    }
+                }
+                if (recommendations.isEmpty()) {
+                    recommendations.add("Maintain daily hydration (2.5L - 3L) and take prescribed medications at consistent hours.")
+                    recommendations.add("Keep digital copies of discharge summaries and lab test reports for longitudinal continuity.")
+                }
+
+                val doctorQuestions = listOf(
+                    "Based on my overall history across all ${snapshot.records.size} reports, are my current health metrics progressing favorably?",
+                    "Are my current prescription dosages well-balanced with my latest lab trends?",
+                    "Which biomarker panels should be prioritized for follow-up testing?"
                 )
-            } else if (latestRecord != null) {
+
+                val doctorBrief = buildDoctorBrief(snapshot, allBiomarkers)
+                val safetyReport = buildMedicationSafetyReport(snapshot)
+                val latestRecord = snapshot.records.maxByOrNull { it.createdAtTimestamp }
+                val latestExtracted = snapshot.extractedInfos.maxByOrNull { it.updatedAtTimestamp }
+
+                withContext(dispatcherProvider.main) {
+                    _aiSummaryState.value = AiHealthSummaryUiState(
+                        isEnabled = true,
+                        isLoading = false,
+                        hasData = snapshot.records.isNotEmpty() || snapshot.extractedInfos.isNotEmpty(),
+                        selectedScope = AiSummaryScope.TOTAL_HEALTH,
+                        selectedReportId = null,
+                        availableReports = availableReports,
+                        summaryTitle = "Total Health Summary",
+                        summarySubtitle = "Complete AI analysis across all ${snapshot.records.size} uploaded reports & health records",
+                        healthScore = score,
+                        statusTier = statusTier,
+                        totalMedications = totalMeds,
+                        takenMedications = takenMeds,
+                        nextMedication = nextMed,
+                        totalRecords = snapshot.records.size,
+                        latestRecordTitle = latestRecord?.title,
+                        latestRecordDate = latestRecord?.let { sdf.format(Date(it.recordDate)) } ?: latestExtracted?.reportDate,
+                        extractedVitalsSummary = if (allBiomarkers.isNotEmpty()) "${allBiomarkers.size} total lab biomarkers tracked" else null,
+                        reportBiomarkers = allBiomarkers,
+                        reportAbnormalCount = totalAbnormal,
+                        reportDoctorQuestions = doctorQuestions,
+                        insights = insights,
+                        actionRecommendations = recommendations,
+                        activeConditions = profileConditions?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList(),
+                        activeAllergies = profileAllergies?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList(),
+                        lastAnalyzedTime = formattedTime
+                    )
+                    _doctorBriefText.value = doctorBrief
+                    _medicationSafetyReport.value = safetyReport
+                }
+            } else {
+                // --- 2. EACH UPLOADED REPORT (Summarize on selected individual report) ---
+                val activeRecord = snapshot.records.firstOrNull { it.id == selectedReportId }
+                    ?: snapshot.records.firstOrNull()
+                val targetExtracted = snapshot.extractedInfos.firstOrNull { it.recordId == activeRecord?.id }
+                val reportBiomarkers = targetExtracted?.let {
+                    MedicalFieldParser.deserializeResults(it.structuredResultsJson)
+                } ?: emptyList()
+                val abnormalMarkers = reportBiomarkers.filter { it.isOutOfRange }
+                val abnormalCount = abnormalMarkers.size
+
+                val reportDateStr = if (!targetExtracted?.reportDate.isNullOrBlank()) {
+                    targetExtracted!!.reportDate!!
+                } else if (activeRecord != null) {
+                    sdf.format(Date(activeRecord.recordDate))
+                } else {
+                    "Recent"
+                }
+
+                var reportScore = if (reportBiomarkers.isEmpty()) 88 else 95
+                reportScore -= (abnormalCount * 10).coerceAtMost(45)
+                reportScore = reportScore.coerceIn(50, 98)
+
+                val statusTier = when {
+                    reportScore >= 88 -> HealthStatusTier.OPTIMAL
+                    reportScore >= 70 -> HealthStatusTier.STABLE
+                    else -> HealthStatusTier.ATTENTION_NEEDED
+                }
+
+                val insights = mutableListOf<AiInsightItem>()
+
+                // Report Verification Insight
                 insights.add(
                     AiInsightItem(
                         id = UUID.randomUUID().toString(),
-                        title = "Latest Record: ${latestRecord.title}",
-                        description = "Document archived and verified on your device. OCR parsing complete.",
+                        title = "Report Analysis Complete",
+                        description = "Verified document '${activeRecord?.title ?: "Medical Document"}' dated $reportDateStr. Successfully parsed ${reportBiomarkers.size} clinical test fields.",
                         category = AiInsightCategory.LAB_VITAL,
                         severity = AiSeverity.POSITIVE
                     )
                 )
-            } else {
-                insights.add(
-                    AiInsightItem(
-                        id = UUID.randomUUID().toString(),
-                        title = "Start Your Health Timeline",
-                        description = "Upload a lab report or prescription scan. The AI extraction engine will automatically parse biomarkers and dates.",
-                        category = AiInsightCategory.LAB_VITAL,
-                        severity = AiSeverity.INFO
+
+                // Abnormal / Normal Findings Insight
+                if (abnormalCount > 0) {
+                    val abnormalDetails = abnormalMarkers.joinToString("; ") {
+                        "${it.testName}: ${it.value} ${it.unit} (${it.status.name.replace("_", " ")})"
+                    }
+                    insights.add(
+                        AiInsightItem(
+                            id = UUID.randomUUID().toString(),
+                            title = "$abnormalCount Out-of-Range Finding(s)",
+                            description = abnormalDetails,
+                            category = AiInsightCategory.LAB_VITAL,
+                            severity = AiSeverity.WARNING
+                        )
                     )
-                )
-            }
-
-            // Allergy & Safety Insight
-            val profileAllergies = snapshot.profile?.allergies
-            if (!profileAllergies.isNullOrBlank()) {
-                insights.add(
-                    AiInsightItem(
-                        id = UUID.randomUUID().toString(),
-                        title = "Allergy Shield Active",
-                        description = "Registered allergies: $profileAllergies. Current scheduled medications screened with zero adverse conflicts.",
-                        category = AiInsightCategory.ALLERGY_SAFETY,
-                        severity = AiSeverity.POSITIVE
+                } else if (reportBiomarkers.isNotEmpty()) {
+                    insights.add(
+                        AiInsightItem(
+                            id = UUID.randomUUID().toString(),
+                            title = "All Biomarkers in Normal Range",
+                            description = "All ${reportBiomarkers.size} measured biomarkers in this report meet standard reference ranges.",
+                            category = AiInsightCategory.LAB_VITAL,
+                            severity = AiSeverity.POSITIVE
+                        )
                     )
-                )
-            }
-
-            // Personalized Wellness Recommendations
-            val recommendations = mutableListOf<String>()
-            val conditions = snapshot.profile?.healthConditions
-            if (!conditions.isNullOrBlank()) {
-                val lower = conditions.lowercase()
-                if (lower.contains("diabet") || lower.contains("sugar")) {
-                    recommendations.add("Check post-meal blood glucose 2 hours after your primary meal.")
                 }
-                if (lower.contains("hyper") || lower.contains("bp") || lower.contains("hypertension")) {
-                    recommendations.add("Maintain low sodium dietary intake and log blood pressure readings twice weekly.")
+
+                // Document Advice Insight
+                val isPrescription = activeRecord?.category?.contains("PRESCRIPTION", ignoreCase = true) == true ||
+                        activeRecord?.title?.contains("prescription", ignoreCase = true) == true
+                if (isPrescription) {
+                    insights.add(
+                        AiInsightItem(
+                            id = UUID.randomUUID().toString(),
+                            title = "Prescription Guidance",
+                            description = "Review prescribed medicine dosage and timing schedules carefully. Consult your pharmacist if taking with other existing medications.",
+                            category = AiInsightCategory.MEDICATION,
+                            severity = AiSeverity.INFO
+                        )
+                    )
+                } else {
+                    insights.add(
+                        AiInsightItem(
+                            id = UUID.randomUUID().toString(),
+                            title = "Follow-up Recommendation",
+                            description = "Review these test findings with your physician. Compare with prior test dates to monitor longitudinal progress.",
+                            category = AiInsightCategory.CARE_ADVICE,
+                            severity = AiSeverity.INFO
+                        )
+                    )
                 }
-            }
-            if (recommendations.isEmpty()) {
-                recommendations.add("Maintain daily hydration (2.5L - 3L) and take prescribed medications at consistent hours.")
-                recommendations.add("Keep digital copies of discharge summaries and lab test reports for longitudinal continuity.")
-            }
 
-            // Generate Pre-compiled Doctor Brief
-            val doctorBrief = buildDoctorBrief(snapshot, parsedResults)
-            val safetyReport = buildMedicationSafetyReport(snapshot)
+                val doctorQuestions = if (abnormalCount > 0) {
+                    val firstAbnormal = abnormalMarkers.first()
+                    listOf(
+                        "My ${firstAbnormal.testName} is ${firstAbnormal.value} ${firstAbnormal.unit} in this report. What is the clinical significance and recommended next step?",
+                        "What lifestyle, dietary, or medication adjustments are advised to bring these parameters back into range?",
+                        "When should I repeat this specific test for re-evaluation?"
+                    )
+                } else {
+                    listOf(
+                        "All test values in this report (${activeRecord?.title}) appear normal. When do you recommend the next routine checkup?",
+                        "Should current health management plans and supplements remain unchanged?"
+                    )
+                }
 
-            val timeFormatter = SimpleDateFormat("h:mm a", Locale.getDefault())
-            val formattedTime = timeFormatter.format(Date())
-            val hasRecords = snapshot.records.isNotEmpty() || snapshot.extractedInfos.isNotEmpty()
-            val hasData = hasRecords
+                val recommendations = mutableListOf<String>()
+                if (abnormalCount > 0) {
+                    recommendations.add("Schedule a doctor consult to review the ${abnormalCount} out-of-range finding(s) in this document.")
+                    recommendations.add("Keep digital copies of this report accessible for comparative review in upcoming checkups.")
+                } else {
+                    recommendations.add("Maintain current healthy lifestyle and dietary habits.")
+                    recommendations.add("Retain this test result as a baseline reference for future consultations.")
+                }
 
-            withContext(dispatcherProvider.main) {
-                _aiSummaryState.value = AiHealthSummaryUiState(
-                    isEnabled = true,
-                    isLoading = false,
-                    hasData = hasData,
-                    healthScore = if (hasData) score else 0,
-                    statusTier = if (hasData) statusTier else HealthStatusTier.STABLE,
-                    totalMedications = totalMeds,
-                    takenMedications = takenMeds,
-                    nextMedication = nextMed,
-                    totalRecords = snapshot.records.size,
-                    latestRecordTitle = latestRecord?.title,
-                    latestRecordDate = latestRecord?.let {
-                        val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-                        sdf.format(Date(it.recordDate))
-                    } ?: latestExtracted?.reportDate,
-                    extractedVitalsSummary = if (parsedResults.isNotEmpty()) parsedResults.first().let { "${it.testName}: ${it.value} ${it.unit}".trim() } else null,
-                    insights = insights,
-                    actionRecommendations = recommendations,
-                    activeConditions = conditions?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList(),
-                    activeAllergies = profileAllergies?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList(),
-                    lastAnalyzedTime = formattedTime
-                )
-                _doctorBriefText.value = doctorBrief
-                _medicationSafetyReport.value = safetyReport
+                val doctorBrief = buildReportDoctorBrief(snapshot, activeRecord, targetExtracted, reportBiomarkers)
+                val safetyReport = buildMedicationSafetyReport(snapshot)
+
+                withContext(dispatcherProvider.main) {
+                    _aiSummaryState.value = AiHealthSummaryUiState(
+                        isEnabled = true,
+                        isLoading = false,
+                        hasData = true,
+                        selectedScope = AiSummaryScope.SPECIFIC_REPORT,
+                        selectedReportId = activeRecord?.id,
+                        availableReports = availableReports,
+                        summaryTitle = "Report: ${activeRecord?.title ?: "Medical Document"}",
+                        summarySubtitle = "AI Summary for document dated $reportDateStr (${reportBiomarkers.size} biomarkers analyzed)",
+                        healthScore = reportScore,
+                        statusTier = statusTier,
+                        totalMedications = totalMeds,
+                        takenMedications = takenMeds,
+                        nextMedication = nextMed,
+                        totalRecords = snapshot.records.size,
+                        latestRecordTitle = activeRecord?.title,
+                        latestRecordDate = reportDateStr,
+                        extractedVitalsSummary = if (reportBiomarkers.isNotEmpty()) "${reportBiomarkers.size} biomarkers extracted" else null,
+                        reportBiomarkers = reportBiomarkers,
+                        reportAbnormalCount = abnormalCount,
+                        reportDoctorQuestions = doctorQuestions,
+                        insights = insights,
+                        actionRecommendations = recommendations,
+                        activeConditions = profileConditions?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList(),
+                        activeAllergies = profileAllergies?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList(),
+                        lastAnalyzedTime = formattedTime
+                    )
+                    _doctorBriefText.value = doctorBrief
+                    _medicationSafetyReport.value = safetyReport
+                }
             }
         }
     }
@@ -429,7 +637,8 @@ class HomeViewModel(
         } else {
             parsedResults.forEach { res ->
                 val ref = if (res.referenceRange.isNotBlank()) " (Ref: ${res.referenceRange})" else ""
-                sb.append("• ${res.testName}: ${res.value} ${res.unit}$ref\n")
+                val outFlag = if (res.isOutOfRange) " [OUT OF RANGE - ${res.status.name}]" else ""
+                sb.append("• ${res.testName}: ${res.value} ${res.unit}$ref$outFlag\n")
             }
         }
 
@@ -438,6 +647,54 @@ class HomeViewModel(
         sb.append("1. Are current prescription dosages optimal given recent lab trends?\n")
         sb.append("2. When should subsequent monitoring or lab follow-ups be scheduled?\n")
         sb.append("3. Any recommended lifestyle or dietary modifications?\n\n")
+        sb.append("Generated by AbhayHealth Local AI Engine • Private & Device-Encrypted")
+
+        return sb.toString()
+    }
+
+    private fun buildReportDoctorBrief(
+        snapshot: HealthDataSnapshot,
+        record: MedicalRecord?,
+        extractedInfo: ExtractedMedicalInfo?,
+        parsedResults: List<ParsedMedicalResult>
+    ): String {
+        val sb = StringBuilder()
+        sb.append("═══════════════════════════════════════\n")
+        sb.append("   ABHAYHEALTH REPORT CONSULT BRIEF    \n")
+        sb.append("═══════════════════════════════════════\n\n")
+
+        val name = snapshot.profile?.fullName ?: patientName.value ?: "Patient"
+        sb.append("PATIENT: $name\n")
+        sb.append("DOCUMENT: ${record?.title ?: "Medical Document"}\n")
+        val date = extractedInfo?.reportDate ?: record?.recordDate?.let {
+            SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it))
+        }
+        if (!date.isNullOrBlank()) {
+            sb.append("Report Date: $date\n")
+        }
+        sb.append("\n───────────────────────────────────────\n")
+        sb.append("EXTRACTED REPORT BIOMARKERS:\n")
+        if (parsedResults.isEmpty()) {
+            sb.append("• No structured laboratory values extracted for this report.\n")
+        } else {
+            parsedResults.forEach { res ->
+                val ref = if (res.referenceRange.isNotBlank()) " (Ref: ${res.referenceRange})" else ""
+                val flag = if (res.isOutOfRange) " [OUT OF RANGE - ${res.status.name}]" else " [NORMAL]"
+                sb.append("• ${res.testName}: ${res.value} ${res.unit}$ref$flag\n")
+            }
+        }
+
+        sb.append("\n───────────────────────────────────────\n")
+        sb.append("KEY QUESTIONS FOR DOCTOR:\n")
+        val abnormal = parsedResults.filter { it.isOutOfRange }
+        if (abnormal.isNotEmpty()) {
+            sb.append("1. Are the out-of-range values in this test clinically significant?\n")
+            sb.append("2. Is repeat testing or further diagnostic evaluation indicated?\n")
+            sb.append("3. Any therapeutic adjustments based on these specific test outcomes?\n\n")
+        } else {
+            sb.append("1. All parameters in this test appear normal. When is follow-up screening suggested?\n")
+            sb.append("2. Should current health management plans or supplements be continued?\n\n")
+        }
         sb.append("Generated by AbhayHealth Local AI Engine • Private & Device-Encrypted")
 
         return sb.toString()

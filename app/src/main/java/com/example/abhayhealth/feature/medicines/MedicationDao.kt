@@ -24,6 +24,12 @@ interface MedicationDao {
     @Query("UPDATE prescription_medications SET isTaken = NOT isTaken WHERE id = :id AND accountUid = :accountUid")
     fun toggleDoseTaken(id: String, accountUid: String): Int
 
+    @Query("UPDATE prescription_medications SET name = :name, dosage = :dosage, timeSlot = :timeSlot WHERE id = :id AND accountUid = :accountUid")
+    fun updateMedication(id: String, accountUid: String, name: String, dosage: String, timeSlot: String): Int
+
+    @Query("UPDATE prescription_medications SET timeSlot = :timeSlot WHERE id = :id AND accountUid = :accountUid")
+    fun updateMedicationTime(id: String, accountUid: String, timeSlot: String): Int
+
     @Query("DELETE FROM prescription_medications WHERE id = :id AND accountUid = :accountUid")
     fun deleteMedication(id: String, accountUid: String): Int
 

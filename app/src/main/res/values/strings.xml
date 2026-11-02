@@ -176,6 +176,13 @@
     <string name="meds_reminders_btn_sync">Sync &amp; Reschedule Alarms</string>
     <string name="meds_reminders_test_success">Test notification sent! Check your notification shade.</string>
     <string name="meds_reminders_sync_success">All medication alarms rescheduled successfully.</string>
+    <string name="meds_edit_reminder_title">Edit Medicine Reminder</string>
+    <string name="meds_edit_time_label">Reminder Time</string>
+    <string name="meds_custom_time_label">Custom Time</string>
+    <string name="meds_edit_btn">Edit</string>
+    <string name="meds_save_reminder">Save Changes</string>
+    <string name="meds_quick_slots">Quick Schedule Slots</string>
+    <string name="meds_time_updated">Reminder time updated</string>
 
     <!-- Me / Profile Screen -->
     <string name="me_profile_default">Patient Profile</string>
@@ -208,6 +215,7 @@
     <string name="common_back">Back</string>
     <string name="common_coming_soon">Feature coming in a future phase</string>
     <string name="common_close">Close</string>
+    <string name="common_cancel">Cancel</string>
 
     <!-- Health Vitals & Trends Chart Strings -->
     <string name="vitals_chart_title">Health Trends &amp; Vitals</string>
@@ -270,4 +278,19 @@
     <string name="symptoms_label_duration">Duration</string>
     <string name="symptoms_label_notes">Notes &amp; Observations</string>
     <string name="symptoms_btn_save">Save to Database</string>
+
+    <!-- AI Assist Scope Options Strings -->
+    <string name="home_ai_opt_total_health">Total Health Summary</string>
+    <string name="home_ai_opt_total_health_sub">Complete summary across all reports &amp; clinical data</string>
+    <string name="home_ai_opt_each_report">Uploaded Reports</string>
+    <string name="home_ai_opt_each_report_count">Report: %1$s</string>
+    <string name="home_ai_opt_select_report">Select a report below to summarize its individual metrics</string>
+    <string name="home_ai_report_findings_title">Report Findings &amp; Biomarkers</string>
+    <string name="home_ai_report_abnormal_warning">%1$d markers out of standard range</string>
+    <string name="home_ai_report_normal_status">All markers within normal range</string>
+    <string name="home_ai_report_questions_title">Doctor Questions For This Report</string>
+    <string name="home_ai_report_date_label">Report Date: %1$s</string>
+    <string name="home_ai_report_lab_label">Lab / Clinic: %1$s</string>
+    <string name="home_ai_report_no_reports">No uploaded reports yet</string>
+    <string name="home_ai_report_no_reports_sub">Upload a lab report or prescription to view report-specific AI summaries</string>
 </resources>

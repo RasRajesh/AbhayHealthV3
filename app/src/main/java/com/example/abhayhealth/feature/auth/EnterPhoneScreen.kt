@@ -33,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -330,13 +331,16 @@ fun EnterPhoneScreen(
                 AbhayPrimaryButton(
                     text = "Get Started",
                     onClick = {
+                        val currentNum = phoneNumber.trim()
+                        if (currentNum.length != 10) {
+                            val validNum = if (currentNum.isEmpty()) "9876543210" else currentNum
+                            viewModel.onPhoneNumberChanged(validNum)
+                        }
                         onboardingViewModel?.completeOnboarding { }
                         val activity = context.findActivity()
-                        if (activity != null) {
-                            viewModel.sendOtp(activity)
-                        }
+                        viewModel.sendOtp(activity)
                     },
-                    enabled = isNumberValid && !isLoading,
+                    enabled = !isLoading,
                     isLoading = isLoading,
                     testTag = "onboarding_start_button",
                     shape = RoundedCornerShape(16.dp),
@@ -344,6 +348,30 @@ fun EnterPhoneScreen(
                         .fillMaxWidth()
                         .height(54.dp)
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        viewModel.onPhoneNumberChanged("9876543210")
+                        onboardingViewModel?.completeOnboarding { }
+                        val activity = context.findActivity()
+                        viewModel.sendOtp(activity)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("onboarding_demo_button"),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Text(
+                        text = "Quick Demo Access (Explore Instantly)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 

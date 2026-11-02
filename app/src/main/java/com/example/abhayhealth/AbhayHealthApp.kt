@@ -1,16 +1,22 @@
 package com.example.abhayhealth
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import com.example.abhayhealth.core.designsystem.theme.AbhayHealthTheme
 import com.example.abhayhealth.core.navigation.AbhayHealthNavHost
 import com.example.abhayhealth.core.storage.datastore.UserPreferences
+import java.util.Locale
 import com.example.abhayhealth.data.repository.FirebaseAuthRepository
 import com.example.abhayhealth.data.repository.PatientProfileRepositoryImpl
 import com.example.abhayhealth.data.repository.UserPreferencesRepositoryImpl
@@ -117,23 +123,54 @@ fun AbhayHealthApp(
         )
     }
 
-    AbhayHealthTheme {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            AbhayHealthNavHost(
-                splashViewModel = splashViewModel,
-                onboardingViewModel = onboardingViewModel,
-                authViewModel = authViewModel,
-                profileViewModel = profileViewModel,
-                extractionReviewViewModel = extractionReviewViewModel,
-                homeViewModel = homeViewModel,
-                recordsViewModel = recordsViewModel,
-                trendsViewModel = trendsViewModel,
-                medicinesViewModel = medicinesViewModel,
-                meViewModel = meViewModel
-            )
+    val appLanguage by userPreferencesRepository.appLanguage.collectAsState(initial = "English")
+    val isTelugu = appLanguage.contains("Telugu", ignoreCase = true) || appLanguage.startsWith("te", ignoreCase = true)
+    val targetLocale = remember(isTelugu) {
+        if (isTelugu) Locale("te") else Locale("en")
+    }
+
+    val currentConfig = LocalConfiguration.current
+    val localizedConfiguration = remember(currentConfig, targetLocale) {
+        Configuration(currentConfig).apply {
+            setLocale(targetLocale)
+            setLayoutDirection(targetLocale)
+        }
+    }
+
+    val localizedContext = remember(context, targetLocale) {
+        val config = Configuration(context.resources.configuration).apply {
+            setLocale(targetLocale)
+            setLayoutDirection(targetLocale)
+        }
+        object : android.content.ContextWrapper(context) {
+            private val configContext = context.createConfigurationContext(config)
+            override fun getResources(): android.content.res.Resources = configContext.resources
+            override fun getAssets(): android.content.res.AssetManager = configContext.assets
+        }
+    }
+
+    CompositionLocalProvider(
+        LocalConfiguration provides localizedConfiguration,
+        LocalContext provides localizedContext
+    ) {
+        AbhayHealthTheme {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                AbhayHealthNavHost(
+                    splashViewModel = splashViewModel,
+                    onboardingViewModel = onboardingViewModel,
+                    authViewModel = authViewModel,
+                    profileViewModel = profileViewModel,
+                    extractionReviewViewModel = extractionReviewViewModel,
+                    homeViewModel = homeViewModel,
+                    recordsViewModel = recordsViewModel,
+                    trendsViewModel = trendsViewModel,
+                    medicinesViewModel = medicinesViewModel,
+                    meViewModel = meViewModel
+                )
+            }
         }
     }
 }

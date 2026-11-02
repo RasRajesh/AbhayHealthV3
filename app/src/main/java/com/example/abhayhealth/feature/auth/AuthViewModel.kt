@@ -47,7 +47,7 @@ class AuthViewModel(
         _otpCode.value = digitsOnly
     }
 
-    fun sendOtp(activity: Activity) {
+    fun sendOtp(activity: Activity? = null) {
         val rawNumber = _phoneNumber.value.trim()
         if (rawNumber.length != 10) {
             return
@@ -64,7 +64,7 @@ class AuthViewModel(
         }
     }
 
-    fun resendOtp(activity: Activity) {
+    fun resendOtp(activity: Activity? = null) {
         val currentState = authState.value
         if (currentState is AuthState.CodeSent && _resendCountdown.value == 0) {
             val fullPhoneNumber = "${_countryCode.value}${_phoneNumber.value.trim()}"
