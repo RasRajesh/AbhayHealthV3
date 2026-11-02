@@ -102,11 +102,11 @@ class FirebaseAuthRepository(
     override val isAuthenticated: Boolean
         get() = _authenticatedUser != null || firebaseAuth?.currentUser != null
 
-    override fun sendOtp(phoneNumber: String, activity: Activity) {
+    override fun sendOtp(phoneNumber: String, activity: Activity?) {
         val auth = firebaseAuth
         _lastPhone = phoneNumber
 
-        if (auth == null) {
+        if (auth == null || activity == null) {
             triggerFallbackVerification(phoneNumber)
             return
         }
@@ -208,11 +208,11 @@ class FirebaseAuthRepository(
         }
     }
 
-    override fun resendOtp(phoneNumber: String, activity: Activity, resendToken: Any?) {
+    override fun resendOtp(phoneNumber: String, activity: Activity?, resendToken: Any?) {
         val auth = firebaseAuth
         _lastPhone = phoneNumber
 
-        if (auth == null || resendToken == null) {
+        if (auth == null || activity == null || resendToken == null) {
             triggerFallbackVerification(phoneNumber)
             return
         }

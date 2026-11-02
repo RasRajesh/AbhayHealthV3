@@ -39,6 +39,9 @@ class MedicinesViewModel(
     private val _showRemindersDialog = MutableStateFlow(false)
     val showRemindersDialog: StateFlow<Boolean> = _showRemindersDialog.asStateFlow()
 
+    private val _editingMedication = MutableStateFlow<PrescriptionMedication?>(null)
+    val editingMedication: StateFlow<PrescriptionMedication?> = _editingMedication.asStateFlow()
+
     private var observeJob: Job? = null
 
     init {
@@ -98,6 +101,50 @@ class MedicinesViewModel(
 
     fun openRemindersDialog() { _showRemindersDialog.value = true }
     fun closeRemindersDialog() { _showRemindersDialog.value = false }
+
+    fun openEditDialog(medication: PrescriptionMedication) { _editingMedication.value = medication }
+    fun closeEditDialog() { _editingMedication.value = null }
+
+    fun updateMedication(id: String, name: String, dosage: String, timeSlot: String) {
+        if (name.isBlank()) return
+        val uid = getCurrentUid()
+        val dao = medicationDao ?: return
+
+        viewModelScope.launch(dispatcherProvider.main) {
+            withContext(dispatcherProvider.io) {
+                dao.updateMedication(
+                    id = id,
+                    accountUid = uid,
+                    name = name.trim(),
+                    dosage = dosage.trim().ifBlank { "1 Tablet" },
+                    timeSlot = timeSlot.trim()
+                )
+            }
+
+            // Immediately reschedule alarm for updated reminder time
+            context?.let { ctx ->
+                MedicationAlarmScheduler.scheduleMedicationAlarm(
+                    context = ctx,
+                    medicationId = id,
+                    name = name.trim(),
+                    dosage = dosage.trim().ifBlank { "1 Tablet" },
+                    timeSlot = timeSlot.trim()
+                )
+            }
+
+            _editingMedication.value = null
+        }
+    }
+
+    fun updateMedicationTime(id: String, newTimeSlot: String) {
+        val current = _medications.value.find { it.id == id } ?: return
+        updateMedication(
+            id = id,
+            name = current.name,
+            dosage = current.dosage,
+            timeSlot = newTimeSlot
+        )
+    }
 
     fun addMedication(name: String, dosage: String, timeSlot: String) {
         if (name.isBlank()) return

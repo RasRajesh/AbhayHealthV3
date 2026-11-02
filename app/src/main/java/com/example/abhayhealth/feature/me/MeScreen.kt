@@ -181,14 +181,17 @@ fun MeScreen(
     }
 
     if (showLanguageDialog) {
-        val languages = listOf("English", "Hindi (हिन्दी)", "Telugu (తెలుగు)", "Tamil (தமிழ்)", "Bengali (বাংলা)", "Marathi (मराठी)")
+        val languages = listOf("English", "Telugu (తెలుగు)")
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
             icon = {
                 Icon(Icons.Default.Language, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             },
             title = {
-                Text("Select Language", fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (appLanguage.contains("Telugu", ignoreCase = true)) "భాషను ఎంచుకోండి" else "Select Language",
+                    fontWeight = FontWeight.Bold
+                )
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -200,9 +203,14 @@ fun MeScreen(
                                 .clickable {
                                     viewModel.setAppLanguage(lang)
                                     showLanguageDialog = false
-                                    Toast.makeText(context, "Language set to $lang", Toast.LENGTH_SHORT).show()
+                                    val toastMsg = if (lang.contains("Telugu", ignoreCase = true)) {
+                                        "భాష తెలుగుకు మార్చబడింది"
+                                    } else {
+                                        "Language changed to English"
+                                    }
+                                    Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
                                 }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
@@ -210,18 +218,23 @@ fun MeScreen(
                                 onClick = {
                                     viewModel.setAppLanguage(lang)
                                     showLanguageDialog = false
-                                    Toast.makeText(context, "Language set to $lang", Toast.LENGTH_SHORT).show()
+                                    val toastMsg = if (lang.contains("Telugu", ignoreCase = true)) {
+                                        "భాష తెలుగుకు మార్చబడింది"
+                                    } else {
+                                        "Language changed to English"
+                                    }
+                                    Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
                                 }
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(text = lang, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = lang, style = MaterialTheme.typography.bodyLarge, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                         }
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showLanguageDialog = false }) {
-                    Text("Close")
+                    Text(if (appLanguage.contains("Telugu", ignoreCase = true)) "మూసివేయి" else "Close")
                 }
             }
         )

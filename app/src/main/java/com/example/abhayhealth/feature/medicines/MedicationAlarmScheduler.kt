@@ -31,18 +31,35 @@ object MedicationAlarmScheduler {
         ScheduledSlotInfo("NIGHT", "Night", "09:30 PM", 21, 30)
     )
 
+    fun formatTimeLabel(hour: Int, minute: Int): String {
+        val amPm = if (hour >= 12) "PM" else "AM"
+        val h12 = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        return String.format(java.util.Locale.US, "%02d:%02d %s", h12, minute, amPm)
+    }
+
     fun parseSlotTime(timeSlot: String): Pair<Int, Int> {
-        // Try regex match like (08:30) or 08:30
+        val upper = timeSlot.uppercase()
+        val isPm = upper.contains("PM")
+        val isAm = upper.contains("AM")
+
         val regex = Regex("(\\d{1,2}):(\\d{2})")
         val match = regex.find(timeSlot)
         if (match != null) {
             val (hStr, mStr) = match.destructured
-            val h = hStr.toIntOrNull() ?: 8
+            var h = hStr.toIntOrNull() ?: 8
             val m = mStr.toIntOrNull() ?: 30
-            return Pair(h, m)
+            if (isPm && h < 12) {
+                h += 12
+            } else if (isAm && h == 12) {
+                h = 0
+            }
+            return Pair(h.coerceIn(0, 23), m.coerceIn(0, 59))
         }
 
-        val upper = timeSlot.uppercase()
         return when {
             upper.contains("MORNING") -> Pair(8, 30)
             upper.contains("AFTERNOON") -> Pair(13, 30)
