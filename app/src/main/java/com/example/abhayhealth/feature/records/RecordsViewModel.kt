@@ -43,6 +43,9 @@ class RecordsViewModel(
     private val _isImporting = MutableStateFlow(false)
     val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()
 
+    private val _extractionStatusMessage = MutableStateFlow("Extracting clinical parameters, medications, and vitals...")
+    val extractionStatusMessage: StateFlow<String> = _extractionStatusMessage.asStateFlow()
+
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
@@ -142,6 +145,7 @@ class RecordsViewModel(
         viewModelScope.launch(dispatcherProvider.main) {
             _isImporting.value = true
             _errorMessage.value = null
+            _extractionStatusMessage.value = "Analyzing document and reading medical fields..."
 
             val result = withContext(Dispatchers.IO) {
                 DocumentImportManager.importDocument(uri, context)
@@ -157,12 +161,21 @@ class RecordsViewModel(
                         localFilePath = result.localFilePath,
                         mimeType = result.mimeType
                     )
+                    var savedRecordId: Long? = null
                     try {
                         val assignedId = repo.insertRecord(record)
+                        savedRecordId = assignedId
                         val savedRecord = record.copy(id = assignedId)
 
+                        _extractionStatusMessage.value = "Extracting lab biomarkers, vitals & prescriptions..."
+
                         // Perform automatic on-device background OCR so biomarkers immediately populate Trends and Medicines
-                        val extraction = DocumentExtractionEngine.extractText(savedRecord)
+                        val extraction = try {
+                            DocumentExtractionEngine.extractText(savedRecord)
+                        } catch (t: Throwable) {
+                            ExtractionResult.Error(t.localizedMessage ?: "Extraction taking time.")
+                        }
+
                         if (extraction is ExtractionResult.Success) {
                             val raw = extraction.rawText
                             val title = MedicalFieldParser.parseDocumentTitle(raw, savedRecord.title)
@@ -224,13 +237,32 @@ class RecordsViewModel(
                                     }
                                 }
                             }
+                        } else {
+                            // Even if OCR found no text or was slow, create baseline info so the user can view & edit
+                            val fallbackInfo = ExtractedMedicalInfo(
+                                recordId = savedRecord.id,
+                                accountUid = uid,
+                                rawText = (extraction as? ExtractionResult.Error)?.message ?: "Document saved. Ready for review.",
+                                documentTitle = savedRecord.title,
+                                reportDate = null,
+                                structuredResultsJson = "[]",
+                                reviewStatus = ExtractedMedicalInfo.STATUS_UNREVIEWED,
+                                processedPages = 1
+                            )
+                            repo.saveExtractedInfo(fallbackInfo)
                         }
 
                         _infoMessage.value = "Document imported and health data extracted successfully."
                         onImported?.invoke(savedRecord.id)
-                    } catch (_: Exception) {
-                        DocumentImportManager.deleteFile(result.localFilePath, context)
-                        _errorMessage.value = "Failed to save record to local database."
+                    } catch (t: Throwable) {
+                        if (savedRecordId == null) {
+                            DocumentImportManager.deleteFile(result.localFilePath, context)
+                            _errorMessage.value = "Failed to save record to local database."
+                        } else {
+                            // Record was saved in DB, do not abort application
+                            _infoMessage.value = "Document saved. Review parameters."
+                            onImported?.invoke(savedRecordId)
+                        }
                     }
                 }
                 is DocumentImportResult.Error -> {

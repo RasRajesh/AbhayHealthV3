@@ -33,6 +33,12 @@ interface MedicationDao {
     @Query("DELETE FROM prescription_medications WHERE id = :id AND accountUid = :accountUid")
     fun deleteMedication(id: String, accountUid: String): Int
 
+    @Query("DELETE FROM prescription_medications WHERE accountUid = :accountUid")
+    fun deleteAllByAccount(accountUid: String): Int
+
+    @Query("DELETE FROM prescription_medications")
+    fun deleteAllMedications(): Int
+
     @Query("SELECT * FROM prescription_medications")
     fun getAllMedicationsSync(): List<PrescriptionMedicationEntity>
 

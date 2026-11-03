@@ -25,6 +25,14 @@ class VitalReadingRepository(
         vitalReadingDao.deleteReading(reading)
     }
 
+    suspend fun deleteAllByAccount(accountUid: String): Int = withContext(Dispatchers.IO) {
+        vitalReadingDao.deleteAllByAccount(accountUid)
+    }
+
+    suspend fun clearAllReadings(): Int = withContext(Dispatchers.IO) {
+        vitalReadingDao.deleteAllReadings()
+    }
+
     suspend fun ensureBaselineReadings(accountUid: String) = withContext(Dispatchers.IO) {
         // Readings are derived strictly from uploaded records and patient-logged vitals
     }

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MeViewModel(
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -197,38 +198,80 @@ class MeViewModel(
     fun deleteAccountAndAllData(context: Context, onDeleted: () -> Unit) {
         if (_isDeleting.value) return
 
-        val uid = authRepository.currentUser?.uid ?: run {
-            authRepository.signOut()
-            onDeleted()
-            return
-        }
+        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val hasFirebaseAuth = authRepository.currentUser != null
 
         _isDeleting.value = true
         _errorMessage.value = null
 
-        // Step 1: Attempt Firebase Auth account deletion FIRST before destroying local records
-        authRepository.deleteAccount { success, error ->
-            if (success) {
-                // Step 2: Delete local health records and files only after account deletion succeeds
-                viewModelScope.launch(dispatcherProvider.main) {
-                    try {
-                        val records = medicalRecordRepository.getRecords(uid).first()
-                        records.forEach { record ->
-                            medicalRecordRepository.deleteRecord(record)
-                            DocumentImportManager.deleteFile(record.localFilePath, context, record, uid)
-                        }
-                        patientProfileRepository.deleteProfile(uid)
-                    } catch (_: Exception) {
-                        // Ignore local cleanup exception
-                    } finally {
-                        _isDeleting.value = false
-                        onDeleted()
+        val purgeAllLocalHealthData: suspend () -> Unit = {
+            withContext(dispatcherProvider.io) {
+                try {
+                    // 1. Cancel all scheduled medication alarms and wipe medications table
+                    val allMeds = medicationDao?.getAllMedicationsSync() ?: emptyList()
+                    allMeds.forEach { med ->
+                        try {
+                            com.example.abhayhealth.feature.medicines.MedicationAlarmScheduler.cancelMedicationAlarm(context, med.id)
+                        } catch (_: Exception) {}
                     }
+                    medicationDao?.deleteAllByAccount(uid)
+                    medicationDao?.deleteAllByAccount("local_user")
+                    medicationDao?.deleteAllMedications()
+
+                    // 2. Wipe vital readings
+                    vitalReadingRepository?.deleteAllByAccount(uid)
+                    vitalReadingRepository?.deleteAllByAccount("local_user")
+                    vitalReadingRepository?.clearAllReadings()
+
+                    // 3. Delete records and physical image/document files
+                    val targetUids = setOf(uid, "local_user")
+                    for (targetUid in targetUids) {
+                        try {
+                            val records = medicalRecordRepository.getRecords(targetUid).first()
+                            records.forEach { record ->
+                                medicalRecordRepository.deleteRecord(record)
+                                DocumentImportManager.deleteFile(record.localFilePath, context, record, targetUid)
+                            }
+                            patientProfileRepository.deleteProfile(targetUid)
+                        } catch (_: Exception) {}
+                    }
+
+                    // 4. Reset patient name & user preferences
+                    userPreferencesRepository.setPatientName("")
+
+                    // 5. Delete saved AI chat session files
+                    try {
+                        File(context.filesDir, "ai_chat_session_$uid.json").delete()
+                        File(context.filesDir, "ai_chat_session_local_user.json").delete()
+                    } catch (_: Exception) {}
+
+                    // 6. Reset counts
+                    _recordCount.value = 0
+                    _medicationCount.value = 0
+                    _vitalCount.value = 0
+                    _patientProfile.value = null
+                } catch (_: Exception) {}
+            }
+        }
+
+        if (hasFirebaseAuth) {
+            // Step 1: Attempt remote Firebase Auth account deletion
+            authRepository.deleteAccount { success, error ->
+                viewModelScope.launch(dispatcherProvider.main) {
+                    // Step 2: Always purge all local health data thoroughly so nothing remains on HomeScreen
+                    purgeAllLocalHealthData()
+                    authRepository.signOut()
+                    _isDeleting.value = false
+                    onDeleted()
                 }
-            } else {
-                // Step 3: On deletion failure, preserve local health data and notify user
+            }
+        } else {
+            // Local account: Purge all data immediately and sign out
+            viewModelScope.launch(dispatcherProvider.main) {
+                purgeAllLocalHealthData()
+                authRepository.signOut()
                 _isDeleting.value = false
-                _errorMessage.value = error ?: "Could not delete account. Your local health data has been preserved."
+                onDeleted()
             }
         }
     }

@@ -135,6 +135,37 @@ fun ExtractionReviewScreen(
         )
     }
 
+    if (isExtracting) {
+        AlertDialog(
+            onDismissRequest = { /* Modal: keep active while extracting data */ },
+            confirmButton = {},
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Extracting Health Data...",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "Analyzing report text, recognizing biomarker measurements, and extracting prescribed medicines. Please wait...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

@@ -153,18 +153,59 @@ object MedicalFieldParser {
         TestDefinition("Vitamin D", listOf("Vitamin D", "25-OH Vitamin D", "Vitamin D3", "25 Hydroxy Vitamin D"), "ng/mL", "30.0 - 100.0 ng/mL"),
         TestDefinition("Vitamin B12", listOf("Vitamin B12", "Cyanocobalamin"), "pg/mL", "211 - 911 pg/mL"),
         TestDefinition("Serum Ferritin", listOf("Serum Ferritin", "Ferritin"), "ng/mL", "30 - 400 ng/mL"),
+        TestDefinition("Serum Iron", listOf("Serum Iron", "Iron", "Total Iron"), "ug/dL", "60 - 170 ug/dL"),
+        TestDefinition("TIBC", listOf("Total Iron Binding Capacity", "TIBC"), "ug/dL", "240 - 450 ug/dL"),
+        TestDefinition("Transferrin Saturation", listOf("Transferrin Saturation", "% Transferrin Saturation", "Iron Saturation"), "%", "20 - 50 %"),
+        TestDefinition("Folic Acid", listOf("Serum Folate", "Folate", "Folic Acid"), "ng/mL", "4.0 - 20.0 ng/mL"),
 
-        // Vitals
+        // Electrolytes & Minerals
+        TestDefinition("Chloride", listOf("Serum Chloride", "Chloride", "Cl-", "Cl"), "mEq/L", "98 - 107 mEq/L"),
+        TestDefinition("Bicarbonate", listOf("Serum Bicarbonate", "Bicarbonate", "HCO3"), "mEq/L", "22 - 29 mEq/L"),
+        TestDefinition("Magnesium", listOf("Serum Magnesium", "Magnesium", "Mg"), "mg/dL", "1.7 - 2.2 mg/dL"),
+        TestDefinition("Phosphorus", listOf("Serum Phosphorus", "Phosphorus", "Phosphate", "Serum Phosphate"), "mg/dL", "2.5 - 4.5 mg/dL"),
+
+        // Pancreatic & Cardiac Enzymes
+        TestDefinition("Serum Amylase", listOf("Serum Amylase", "Amylase"), "U/L", "28 - 100 U/L"),
+        TestDefinition("Serum Lipase", listOf("Serum Lipase", "Lipase"), "U/L", "13 - 60 U/L"),
+        TestDefinition("LDH", listOf("Lactate Dehydrogenase", "LDH", "Serum LDH"), "U/L", "140 - 280 U/L"),
+        TestDefinition("CPK / CK", listOf("Creatine Kinase", "CPK", "CK", "CK-NAC"), "U/L", "39 - 308 U/L"),
+        TestDefinition("CK-MB", listOf("CK-MB", "Creatine Kinase MB"), "U/L", "0 - 25 U/L"),
+        TestDefinition("Troponin-I", listOf("Troponin I", "Troponin-I", "Trop-I", "hs-cTnI"), "ng/mL", "< 0.04 ng/mL"),
+        TestDefinition("Troponin-T", listOf("Troponin T", "Troponin-T", "Trop-T"), "ng/mL", "< 0.01 ng/mL"),
+
+        // Coagulation & Thrombosis
+        TestDefinition("D-Dimer", listOf("D-Dimer", "D Dimer"), "mg/L", "< 0.50 mg/L"),
+        TestDefinition("Prothrombin Time", listOf("Prothrombin Time", "PT", "PT (Seconds)"), "sec", "11.0 - 13.5 sec"),
+        TestDefinition("INR", listOf("INR", "PT / INR", "PT/INR", "International Normalized Ratio"), "", "0.8 - 1.2"),
+        TestDefinition("aPTT", listOf("aPTT", "APTT", "Activated Partial Thromboplastin Time"), "sec", "25 - 35 sec"),
+
+        // Serology & Infectious Disease
+        TestDefinition("Dengue NS1", listOf("Dengue NS1 Antigen", "Dengue NS1", "NS1 Antigen"), "", "Negative"),
+        TestDefinition("Dengue IgM", listOf("Dengue IgM", "Dengue IgM Antibody"), "", "Negative"),
+        TestDefinition("Dengue IgG", listOf("Dengue IgG", "Dengue IgG Antibody"), "", "Negative"),
+        TestDefinition("Widal Test", listOf("Widal Test", "Widal", "Typhi O", "Typhi H"), "", "Negative"),
+        TestDefinition("Malaria Antigen", listOf("Malaria Antigen", "Malarial Parasite", "MP"), "", "Negative"),
+        TestDefinition("HBsAg", listOf("HBsAg", "Hepatitis B Surface Antigen"), "", "Non-Reactive"),
+        TestDefinition("HCV", listOf("Anti-HCV", "HCV Antibody"), "", "Non-Reactive"),
+        TestDefinition("HIV", listOf("HIV I & II", "HIV Antibody", "HIV"), "", "Non-Reactive"),
+
+        // Tumor Markers
+        TestDefinition("PSA", listOf("Prostate Specific Antigen", "Total PSA", "PSA"), "ng/mL", "< 4.0 ng/mL"),
+        TestDefinition("CEA", listOf("Carcinoembryonic Antigen", "CEA"), "ng/mL", "< 3.0 ng/mL"),
+        TestDefinition("CA-125", listOf("CA 125", "CA-125"), "U/mL", "< 35 U/mL"),
+
+        // Vitals & Physiological Parameters
         TestDefinition("Blood Pressure", listOf("Blood Pressure", "BP", "B.P."), "mmHg", "120/80 mmHg"),
         TestDefinition("Pulse", listOf("Pulse", "Heart Rate", "Pulse Rate"), "BPM", "60 - 100 BPM"),
         TestDefinition("SpO2", listOf("SpO2", "Oxygen Saturation", "O2 Saturation"), "%", "95 - 100 %"),
         TestDefinition("Temperature", listOf("Temperature", "Temp"), "°F", "97.0 - 99.0 °F"),
+        TestDefinition("Respiratory Rate", listOf("Respiratory Rate", "RR"), "breaths/min", "12 - 20 breaths/min"),
         TestDefinition("Weight", listOf("Weight", "Body Weight", "Wt", "Wt:"), "kg", "Target BMI 18.5 - 24.9")
     )
 
-    // Standard medical forms prefix (supports 1 Syp, 2. Tab, 3) Cap, or Tab)
+    // Standard medical forms prefix (supports 1 Syp, 2. Tab, 3) Cap, or Tab, T., C.)
     private val MEDICINE_FORM_PREFIX = Regex(
-        """(?im)^(?:[0-9]+[\.\)\-]?\s*)?(TAB|TABLET|CAP|CAPSULE|SYP|SYRUP|INJ|INJECTION|DROPS|OINT|OINTMENT|GEL|CREAM|SUSP|SUSPENSION|LOTION|INHALER|RESPULES|SACHET|POWDER)\.?\s+([A-Za-z0-9\s_+/-]+)""",
+        """(?im)^(?:[0-9]+[\.\)\-]?\s*)?(TAB|TABLET|CAP|CAPSULE|SYP|SYRUP|INJ|INJECTION|DROPS|OINT|OINTMENT|GEL|CREAM|SUSP|SUSPENSION|LOTION|INHALER|RESPULES|SACHET|POWDER|T|C)\.?\s+([A-Za-z0-9\s_+/-]+)""",
         RegexOption.IGNORE_CASE
     )
 
@@ -385,6 +426,44 @@ object MedicalFieldParser {
             }
         }
 
+        // Strategy 3: Tabular Row Extraction for any remaining unmapped lab parameters
+        val tableRowPattern = Regex(
+            """^(?:[0-9]+[\.\)]\s*)?([A-Za-z][A-Za-z0-9\s()/\-_.]{2,35}?)\s+([<>≤≥]?\s*\d+(?:\.\d+)?|\b(?:Nil|Negative|Positive|Normal|Trace|Reactive|Non-Reactive|Clear|Pale\s+Yellow)\b)\s*([a-zA-Zµμ%/0-9^._-]+)?(?:\s+([<>≤≥\d\s\-–.to()\/]+))?""",
+            RegexOption.IGNORE_CASE
+        )
+
+        val skipHeaders = setOf(
+            "investigation", "investigations", "test", "test name", "parameter", "result", "results",
+            "observed value", "units", "unit", "biological reference", "reference interval", "ref range",
+            "normal range", "method", "specimen", "page", "date", "patient", "doctor", "dr", "age", "gender", "sex"
+        )
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            val match = tableRowPattern.find(trimmed) ?: continue
+            val rawName = match.groupValues[1].trim()
+            val lower = rawName.lowercase()
+
+            if (skipHeaders.any { lower.contains(it) } || rawName.length < 3) continue
+
+            val key = lower.replace(Regex("""[^a-z0-9]"""), "")
+            if (seenTests.add(key)) {
+                val value = match.groupValues[2].trim()
+                val unit = match.groupValues[3].trim()
+                val refRange = match.groupValues[4].trim()
+
+                results.add(
+                    ParsedMedicalResult(
+                        id = UUID.randomUUID().toString(),
+                        testName = rawName,
+                        value = value,
+                        unit = unit,
+                        referenceRange = refRange
+                    )
+                )
+            }
+        }
+
         return results
     }
 
@@ -554,10 +633,10 @@ object MedicalFieldParser {
 
                 // 3. Check for numbered prescription line starting with Rx or 1., 2.
                 if (medName == null) {
-                    val rxMatch = Regex("""^(?:Rx:?|\d+[\.\)]?)\s*([A-Za-z0-9\s_+/-]+?)(?:\s+(?:1-0-1|1-0-0|0-0-1|1-1-1|OD|BD|TID|QID|Morning|Night|x\s*\d+|\d+\s*days|SOS))""", RegexOption.IGNORE_CASE).find(line)
+                    val rxMatch = Regex("""^(?:Rx:?|\d+[\.\)\-]?)\s*([A-Za-z0-9\s_+/-]+?)(?:\s+(?:1-0-1|1-0-0|0-0-1|1-1-1|OD|BD|TID|QID|Morning|Night|x\s*\d+|\d+\s*days|SOS|\d+\s*(?:mg|ml|mcg|tab|cap)))""", RegexOption.IGNORE_CASE).find(line)
                     if (rxMatch != null) {
                         val candidate = rxMatch.groupValues[1].trim()
-                        if (candidate.length in 3..40 && !candidate.contains("patient", true) && !candidate.contains("doctor", true) && !candidate.contains("clinic", true)) {
+                        if (candidate.length in 3..40 && !candidate.contains("patient", true) && !candidate.contains("doctor", true) && !candidate.contains("clinic", true) && !candidate.contains("hospital", true) && !candidate.contains("diagnosis", true)) {
                             medName = candidate
                         }
                     }
