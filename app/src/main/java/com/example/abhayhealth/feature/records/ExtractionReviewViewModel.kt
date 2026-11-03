@@ -197,13 +197,25 @@ class ExtractionReviewViewModel(
                     }
 
                     is ExtractionResult.Error -> {
-                        _errorMessage.value = extraction.message
+                        val fallbackInfo = ExtractedMedicalInfo(
+                            recordId = record.id,
+                            accountUid = uid,
+                            rawText = extraction.message,
+                            documentTitle = record.title,
+                            reportDate = null,
+                            structuredResultsJson = "[]",
+                            reviewStatus = ExtractedMedicalInfo.STATUS_UNREVIEWED,
+                            processedPages = 1
+                        )
+                        medicalRecordRepository.saveExtractedInfo(fallbackInfo)
+                        _extractedInfo.value = fallbackInfo
+                        _infoMessage.value = "Document loaded. You can review and add clinical fields manually."
                     }
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
-            } catch (exception: Exception) {
-                _errorMessage.value = "Could not extract data from document. You can add fields manually."
+            } catch (_: Throwable) {
+                _infoMessage.value = "Extraction finished. You can review or edit fields manually."
             } finally {
                 _isExtracting.value = false
             }

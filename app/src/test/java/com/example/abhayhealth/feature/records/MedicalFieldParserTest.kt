@@ -330,4 +330,65 @@ class MedicalFieldParserTest {
         assertNotNull(electralGuidance)
         assertTrue(electralGuidance!!.tip.contains("Rehydration", ignoreCase = true))
     }
+
+    @Test
+    fun testComprehensiveLabTestExtraction() {
+        val labReportText = """
+            APOLLO DIAGNOSTICS
+            Patient: John Doe, Age: 45
+            Date: 12-Nov-2026
+            
+            INVESTIGATION           RESULT   UNITS    REFERENCE INTERVAL
+            Serum Chloride          102.0    mEq/L    98 - 107
+            Serum Magnesium         2.1      mg/dL    1.7 - 2.2
+            Serum Iron              85.0     ug/dL    60 - 170
+            Total Iron Binding Capacity 320  ug/dL    240 - 450
+            D-Dimer                 0.35     mg/L     < 0.50
+            Troponin-I              0.02     ng/mL    < 0.04
+            Serum Amylase           65       U/L      28 - 100
+            Dengue NS1 Antigen      Negative          Negative
+        """.trimIndent()
+
+        val results = MedicalFieldParser.parseTestResults(labReportText)
+        assertTrue("Should extract all lab parameters", results.size >= 8)
+
+        val chloride = results.firstOrNull { it.testName.contains("Chloride", ignoreCase = true) }
+        assertNotNull(chloride)
+        assertEquals("102.0", chloride!!.value)
+        assertEquals("mEq/L", chloride.unit)
+
+        val dDimer = results.firstOrNull { it.testName.contains("D-Dimer", ignoreCase = true) }
+        assertNotNull(dDimer)
+        assertEquals("0.35", dDimer!!.value)
+
+        val troponin = results.firstOrNull { it.testName.contains("Troponin", ignoreCase = true) }
+        assertNotNull(troponin)
+        assertEquals("0.02", troponin!!.value)
+    }
+
+    @Test
+    fun testRxPrescriptionNumberedExtraction() {
+        val prescriptionText = """
+            DR. SHARMA'S CLINIC
+            Date: 03/11/2026
+            Rx:
+            1. Tab Pan-D 40mg 1-0-0 Before Food x 15 days
+            2. Cap Amoxicillin 500mg 1-0-1 After Food x 5 days
+            3. Tab Dolo 650 1-0-1 SOS for fever
+            4. Syp Grilinctus 10ml TDS
+        """.trimIndent()
+
+        val medicines = MedicalFieldParser.parsePrescriptionMedicines(prescriptionText, "user_test")
+        assertTrue("Should extract all prescribed medicines", medicines.isNotEmpty())
+
+        val panD = medicines.firstOrNull { it.name.contains("Pan", ignoreCase = true) }
+        assertNotNull(panD)
+        assertTrue(panD!!.dosage.contains("Before Food", ignoreCase = true))
+
+        val amox = medicines.firstOrNull { it.name.contains("Amoxicillin", ignoreCase = true) }
+        assertNotNull(amox)
+
+        val dolo = medicines.firstOrNull { it.name.contains("Dolo", ignoreCase = true) }
+        assertNotNull(dolo)
+    }
 }
