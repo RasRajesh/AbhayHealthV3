@@ -18,6 +18,7 @@ import com.example.abhayhealth.feature.medicines.MedicationDao
 import com.example.abhayhealth.feature.medicines.PrescriptionMedicationEntity
 import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.records.MedicalFieldParser
+import com.example.abhayhealth.feature.records.MedicalRecord
 import com.example.abhayhealth.feature.records.MedicalRecordRepository
 import com.example.abhayhealth.feature.vitals.VitalReadingEntity
 import com.example.abhayhealth.feature.vitals.VitalReadingRepository
@@ -45,9 +46,31 @@ data class AiChatMessage(
     val quickSuggestions: List<String> = emptyList()
 )
 
+data class ReportOption(
+    val id: Long? = null,
+    val title: String,
+    val titleTe: String,
+    val subtitle: String,
+    val date: String,
+    val biomarkerCount: Int = 0,
+    val abnormalCount: Int = 0,
+    val isPrescription: Boolean = false
+) {
+    companion object {
+        val TOTAL_HEALTH = ReportOption(
+            id = null,
+            title = "Total Health Summary",
+            titleTe = "మొత్తం ఆరోగ్య సారాంశం",
+            subtitle = "Comprehensive analysis across all records & vitals",
+            date = "All Reports"
+        )
+    }
+}
+
 data class AiExecutiveSummary(
     val title: String = "Executive Clinical Summary",
     val titleTe: String = "క్లినికల్ ఎగ్జిక్యూటివ్ సారాంశం",
+    val reportScopeName: String = "Total Health Summary",
     val englishText: String = "",
     val teluguText: String = "",
     val keyMetrics: List<String> = emptyList(),
@@ -79,6 +102,12 @@ class AiAssistantViewModel(
     private val _ttsAvailable = MutableStateFlow(false)
     val ttsAvailable: StateFlow<Boolean> = _ttsAvailable.asStateFlow()
 
+    private val _availableReports = MutableStateFlow<List<ReportOption>>(listOf(ReportOption.TOTAL_HEALTH))
+    val availableReports: StateFlow<List<ReportOption>> = _availableReports.asStateFlow()
+
+    private val _selectedReport = MutableStateFlow(ReportOption.TOTAL_HEALTH)
+    val selectedReport: StateFlow<ReportOption> = _selectedReport.asStateFlow()
+
     private val _executiveSummary = MutableStateFlow(AiExecutiveSummary())
     val executiveSummary: StateFlow<AiExecutiveSummary> = _executiveSummary.asStateFlow()
 
@@ -90,6 +119,8 @@ class AiAssistantViewModel(
 
     // Internal clinical state cache
     private var cachedProfile: PatientProfile? = null
+    private var cachedRecords: List<MedicalRecord> = emptyList()
+    private var cachedExtractedInfos: List<ExtractedMedicalInfo> = emptyList()
     private var cachedBiomarkers: List<ParsedMedicalResult> = emptyList()
     private var cachedMedications: List<PrescriptionMedicationEntity> = emptyList()
     private var cachedVitals: List<VitalReadingEntity> = emptyList()
@@ -150,6 +181,8 @@ class AiAssistantViewModel(
                 _selectedLanguage.value = normalized
                 if (_chatMessages.value.isEmpty()) {
                     initConversation(normalized)
+                } else {
+                    refreshExecutiveSummary()
                 }
             }
         }
@@ -158,9 +191,9 @@ class AiAssistantViewModel(
     private fun initConversation(lang: String) {
         val isTe = lang == "Telugu"
         val greetingText = if (isTe) {
-            "నమస్కారం! నేను మీ AbhayHealth AI ఆరోగ్య సహాయకుడిని. మీ తాజా ల్యాబ్ రికార్డులు, రక్తపోటు, షుగర్ స్థాయిలు మరియు మందుల వివరాలు నా వద్ద ఉన్నాయి. మీరు ఏదైనా ప్రశ్న అడగవచ్చు లేదా పైనున్న స్పీకర్ బటన్ నొక్కి మీ పూర్తి ఆరోగ్య సారాంశాన్ని వినవచ్చు!"
+            "నమస్కారం! నేను మీ AbhayHealth AI ఆరోగ్య సహాయకుడిని. మీరు మొత్తం ఆరోగ్య సారాంశాన్ని లేదా పైన ఉన్న డ్రాప్‌డౌన్ ద్వారా నిర్దిష్ట ల్యాబ్ రిపోర్టును ఎంచుకుని పరిశీలించవచ్చు. ఆడియో స్పీకర్ బటన్ నొక్కి సారాంశాన్ని వినవచ్చు!"
         } else {
-            "Hello! I am your AbhayHealth AI Health Assistant. I have analyzed your diagnostic lab results, vitals, and current medication regimen. Feel free to ask any health question, or tap the Speaker icon above to listen to your clinical summary read aloud!"
+            "Hello! I am your AbhayHealth AI Health Assistant. You can analyze your overall health or use the dropdown above to focus on specific uploaded lab reports. Tap the Speaker icon anytime to listen to the clinical brief!"
         }
 
         val suggestions = if (isTe) {
@@ -203,14 +236,25 @@ class AiAssistantViewModel(
                     }
                 }
 
+                // Observe Medical Records
+                launch {
+                    medicalRecordRepository?.getRecords(uid)?.collectLatest { records ->
+                        cachedRecords = records
+                        rebuildAvailableReports()
+                        refreshExecutiveSummary()
+                    }
+                }
+
                 // Observe Extracted Biomarkers
                 launch {
                     medicalRecordRepository?.getAllExtractedInfo(uid)?.collectLatest { infos ->
+                        cachedExtractedInfos = infos
                         val results = mutableListOf<ParsedMedicalResult>()
                         infos.forEach { info ->
                             results.addAll(MedicalFieldParser.deserializeResults(info.structuredResultsJson))
                         }
                         cachedBiomarkers = results
+                        rebuildAvailableReports()
                         refreshExecutiveSummary()
                     }
                 }
@@ -234,77 +278,230 @@ class AiAssistantViewModel(
         }
     }
 
+    private fun rebuildAvailableReports() {
+        val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        val options = mutableListOf<ReportOption>()
+        options.add(ReportOption.TOTAL_HEALTH)
+
+        cachedRecords.forEachIndexed { index, record ->
+            val extracted = cachedExtractedInfos.firstOrNull { it.recordId == record.id }
+            val biomarkers = extracted?.let { MedicalFieldParser.deserializeResults(it.structuredResultsJson) } ?: emptyList()
+            val abnormalCount = biomarkers.count { it.isOutOfRange }
+            val isRx = record.category.contains("PRESCRIPTION", ignoreCase = true) || record.title.contains("prescription", ignoreCase = true)
+
+            val dateStr = if (!extracted?.reportDate.isNullOrBlank()) {
+                extracted!!.reportDate!!
+            } else {
+                sdf.format(Date(record.recordDate))
+            }
+
+            val prefix = if (isRx) "Prescription" else "Lab Report"
+            val prefixTe = if (isRx) "ప్రిస్క్రిప్షన్" else "ల్యాబ్ రిపోర్ట్"
+
+            val displayTitle = if (record.title.isNotBlank()) record.title else "$prefix #${index + 1}"
+            val displayTitleTe = if (record.title.isNotBlank()) record.title else "$prefixTe #${index + 1}"
+
+            val subtitle = if (biomarkers.isNotEmpty()) {
+                "${biomarkers.size} biomarkers • $dateStr"
+            } else {
+                "Document • $dateStr"
+            }
+
+            options.add(
+                ReportOption(
+                    id = record.id,
+                    title = displayTitle,
+                    titleTe = displayTitleTe,
+                    subtitle = subtitle,
+                    date = dateStr,
+                    biomarkerCount = biomarkers.size,
+                    abnormalCount = abnormalCount,
+                    isPrescription = isRx
+                )
+            )
+        }
+
+        _availableReports.value = options
+
+        // Ensure selected report still exists
+        val currentSelected = _selectedReport.value
+        if (currentSelected.id != null && options.none { it.id == currentSelected.id }) {
+            _selectedReport.value = ReportOption.TOTAL_HEALTH
+        }
+    }
+
+    fun selectReport(option: ReportOption) {
+        if (_selectedReport.value.id == option.id) return
+        _selectedReport.value = option
+        stopSpeaking()
+        refreshExecutiveSummary()
+
+        val isTe = _selectedLanguage.value == "Telugu"
+        val switchMsgText = if (option.id == null) {
+            if (isTe) {
+                "మొత్తం ఆరోగ్య సారాంశానికి మార్చబడింది. మీ అన్ని రికార్డులు, మందులు మరియు రక్తపోటు, షుగర్ స్థాయిల సమగ్ర సమాచారాన్ని సమీక్షించవచ్చు."
+            } else {
+                "Switched to Total Health Summary. I am analyzing your full clinical history across all uploaded documents, prescriptions, and vitals."
+            }
+        } else {
+            if (isTe) {
+                "${option.titleTe} పై దృష్టి కేంద్రీకరించబడింది (తేదీ: ${option.date}). ఈ నివేదికలోని ${option.biomarkerCount} పరీక్ష ఫలితాల గురించి మీరు నన్ను అడగవచ్చు."
+            } else {
+                "Switched focus to ${option.title} (${option.date}). You can now ask questions specifically about this report's ${option.biomarkerCount} biomarkers, test values, and physician guidance."
+            }
+        }
+
+        val suggestions = if (option.id == null) {
+            if (isTe) listOf("నా తాజా ల్యాబ్ రిపోర్టులు", "మందుల భద్రత", "రక్తపోటు స్థితి")
+            else listOf("Explain my lab reports", "Audit medication safety", "How is my Blood Pressure?")
+        } else {
+            if (isTe) listOf("ఈ రిపోర్టులోని అసాధారణ విలువలు?", "ఈ రిపోర్టును క్లినికల్‌గా వివరించండి", "డాక్టర్‌ను ఏమి అడగాలి?")
+            else listOf("Are there abnormal values?", "Explain this report in plain words", "What questions should I ask my doctor?")
+        }
+
+        val notificationMsg = AiChatMessage(
+            sender = MessageSender.ASSISTANT,
+            text = switchMsgText,
+            language = _selectedLanguage.value,
+            quickSuggestions = suggestions
+        )
+
+        _chatMessages.value = _chatMessages.value + notificationMsg
+    }
+
     private fun refreshExecutiveSummary() {
+        val currentScope = _selectedReport.value
         val patientName = cachedProfile?.fullName?.ifBlank { null } ?: "Patient"
-        val bpReading = cachedVitals.firstOrNull { it.type == "BLOOD_PRESSURE" && it.systolic != null }
-        val bpStr = if (bpReading != null) "${bpReading.systolic?.toInt()}/${bpReading.diastolic?.toInt()} mmHg" else "120/80 mmHg"
-        
-        val sugarReading = cachedBiomarkers.firstOrNull {
-            it.testName.contains("Glucose", ignoreCase = true) || it.testName.contains("Sugar", ignoreCase = true) || it.testName.contains("FBS", ignoreCase = true)
-        }
-        val sugarStr = if (sugarReading != null) "${sugarReading.value} ${sugarReading.unit}".trim() else "95 mg/dL"
-
-        val hrReading = cachedBiomarkers.firstOrNull {
-            it.testName.contains("Heart", ignoreCase = true) || it.testName.contains("Pulse", ignoreCase = true)
-        }
-        val hrStr = if (hrReading != null) "${hrReading.value} BPM" else "72 BPM"
-
-        val outOfRangeBiomarkers = cachedBiomarkers.filter { it.isOutOfRange }
-        val criticalCount = outOfRangeBiomarkers.count {
-            it.status == BiomarkerStatus.CRITICAL_HIGH || it.status == BiomarkerStatus.CRITICAL_LOW
-        }
-
-        val medCount = cachedMedications.size
-        val medNames = cachedMedications.take(3).joinToString(", ") { "${it.name} (${it.dosage})" }
-
-        // English Summary Synthesis
-        val engSummaryBuilder = StringBuilder()
-        engSummaryBuilder.append("Clinical Health Brief for $patientName. ")
-        engSummaryBuilder.append("Current vital telemetry indicates arterial blood pressure at $bpStr and fasting blood glucose at $sugarStr. Heart rate is steady at $hrStr. ")
-        if (outOfRangeBiomarkers.isNotEmpty()) {
-            engSummaryBuilder.append("Laboratory analysis identified ${outOfRangeBiomarkers.size} out-of-range biomarkers (including ${outOfRangeBiomarkers.first().testName} at ${outOfRangeBiomarkers.first().value}). Clinical follow-up is recommended. ")
-        } else {
-            engSummaryBuilder.append("All extracted clinical laboratory markers demonstrate physiological stability within standard reference intervals. ")
-        }
-        if (medCount > 0) {
-            engSummaryBuilder.append("Current active medication regimen comprises $medCount prescribed treatments ($medNames). Please ensure doses are taken punctually with appropriate food pairing.")
-        } else {
-            engSummaryBuilder.append("No active prescription drug interactions detected.")
-        }
-
-        // Telugu Summary Synthesis
-        val teSummaryBuilder = StringBuilder()
-        teSummaryBuilder.append("$patientName గారి సమగ్ర వైద్య నివేదిక సారాంశం. ")
-        teSummaryBuilder.append("ప్రస్తుత ఆరోగ్య కొలతల ప్రకారం రక్తపోటు $bpStr మరియు రక్తంలో గ్లూకోజ్ $sugarStr గా నమోదయ్యాయి. గుండె వేగం నిమిషానికి $hrStr గా ఉంది. ")
-        if (outOfRangeBiomarkers.isNotEmpty()) {
-            teSummaryBuilder.append("ల్యాబ్ పరీక్షలలో ${outOfRangeBiomarkers.size} అంశాలు పరిమితికి మించి ఉన్నట్లు గుర్తించబడింది (${outOfRangeBiomarkers.first().testName}: ${outOfRangeBiomarkers.first().value}). వైద్యుని సంప్రదించడం మంచిది. ")
-        } else {
-            teSummaryBuilder.append("ల్యాబ్ నివేదికలలో అన్ని పరీక్షల ఫలితాలు సాధారణ పరిమితుల్లో ఆరోగ్యకరంగా ఉన్నాయి. ")
-        }
-        if (medCount > 0) {
-            teSummaryBuilder.append("ప్రస్తుతం $medCount మందులు వాడుతున్నారు ($medNames). మందులను సూచించిన వేళకు ఆహారంతో పాటు తప్పక తీసుకోండి.")
-        } else {
-            teSummaryBuilder.append("ప్రస్తుతం ఎటువంటి మందుల పరస్పర వ్యతిరేక ప్రభావాలు లేవు.")
-        }
-
-        val keyMetrics = listOf(
-            "BP: $bpStr",
-            "Sugar: $sugarStr",
-            "HR: $hrStr",
-            if (medCount > 0) "$medCount Meds" else "No Meds"
-        )
-
         val dateFormat = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
-        _executiveSummary.value = AiExecutiveSummary(
-            title = "Clinical Executive Summary",
-            titleTe = "క్లినికల్ ఎగ్జిక్యూటివ్ సారాంశం",
-            englishText = engSummaryBuilder.toString(),
-            teluguText = teSummaryBuilder.toString(),
-            keyMetrics = keyMetrics,
-            criticalAlertCount = criticalCount,
-            activeMedicationsCount = medCount,
-            lastUpdatedText = dateFormat.format(Date())
-        )
+        val lastSync = dateFormat.format(Date())
+
+        if (currentScope.id == null) {
+            // === TOTAL HEALTH SUMMARY ===
+            val bpReading = cachedVitals.firstOrNull { it.type == "BLOOD_PRESSURE" && it.systolic != null }
+            val bpStr = if (bpReading != null) "${bpReading.systolic?.toInt()}/${bpReading.diastolic?.toInt()} mmHg" else "120/80 mmHg"
+
+            val sugarReading = cachedBiomarkers.firstOrNull {
+                it.testName.contains("Glucose", ignoreCase = true) || it.testName.contains("Sugar", ignoreCase = true) || it.testName.contains("FBS", ignoreCase = true)
+            }
+            val sugarStr = if (sugarReading != null) "${sugarReading.value} ${sugarReading.unit}".trim() else "95 mg/dL"
+
+            val hrReading = cachedBiomarkers.firstOrNull {
+                it.testName.contains("Heart", ignoreCase = true) || it.testName.contains("Pulse", ignoreCase = true)
+            }
+            val hrStr = if (hrReading != null) "${hrReading.value} BPM" else "72 BPM"
+
+            val outOfRangeBiomarkers = cachedBiomarkers.filter { it.isOutOfRange }
+            val criticalCount = outOfRangeBiomarkers.count {
+                it.status == BiomarkerStatus.CRITICAL_HIGH || it.status == BiomarkerStatus.CRITICAL_LOW
+            }
+
+            val medCount = cachedMedications.size
+            val medNames = cachedMedications.take(3).joinToString(", ") { "${it.name} (${it.dosage})" }
+
+            // English Summary Synthesis
+            val engSummaryBuilder = StringBuilder()
+            engSummaryBuilder.append("Total Clinical Brief for $patientName. ")
+            engSummaryBuilder.append("Current vital telemetry indicates arterial blood pressure at $bpStr and fasting blood glucose at $sugarStr. Steady heart rate at $hrStr. ")
+            if (outOfRangeBiomarkers.isNotEmpty()) {
+                engSummaryBuilder.append("Across all uploaded lab reports, ${outOfRangeBiomarkers.size} biomarkers require physician review (${outOfRangeBiomarkers.take(3).joinToString { "${it.testName} at ${it.value}" }}). ")
+            } else {
+                engSummaryBuilder.append("All extracted clinical laboratory markers demonstrate physiological stability within standard reference intervals. ")
+            }
+            if (medCount > 0) {
+                engSummaryBuilder.append("Current active medication regimen comprises $medCount prescribed treatments ($medNames). Maintain scheduled adherence with appropriate food intake.")
+            } else {
+                engSummaryBuilder.append("No active prescription drug interactions detected.")
+            }
+
+            // Telugu Summary Synthesis
+            val teSummaryBuilder = StringBuilder()
+            teSummaryBuilder.append("$patientName గారి సమగ్ర వైద్య నివేదిక సారాంశం. ")
+            teSummaryBuilder.append("ప్రస్తుత ఆరోగ్య కొలతల ప్రకారం రక్తపోటు $bpStr మరియు రక్తంలో గ్లూకోజ్ $sugarStr గా నమోదయ్యాయి. గుండె వేగం నిమిషానికి $hrStr గా ఉంది. ")
+            if (outOfRangeBiomarkers.isNotEmpty()) {
+                teSummaryBuilder.append("అన్ని ల్యాబ్ రిపోర్టులలో కలిపి ${outOfRangeBiomarkers.size} పరీక్ష ఫలితాలు వ్యత్యాసంగా ఉన్నాయి (${outOfRangeBiomarkers.take(2).joinToString { "${it.testName} (${it.value})" }}). వైద్యుని సంప్రదించడం మంచిది. ")
+            } else {
+                teSummaryBuilder.append("ల్యాబ్ నివేదికలలో అన్ని పరీక్షల ఫలితాలు సాధారణ పరిమితుల్లో ఆరోగ్యకరంగా ఉన్నాయి. ")
+            }
+            if (medCount > 0) {
+                teSummaryBuilder.append("ప్రస్తుతం $medCount మందులు వాడుతున్నారు ($medNames). మందులను సూచించిన వేళకు తీసుకోవడం ముఖ్యం.")
+            } else {
+                teSummaryBuilder.append("ప్రస్తుతం ఎటువంటి మందుల పరస్పర వ్యతిరేక ప్రభావాలు లేవు.")
+            }
+
+            val keyMetrics = listOf(
+                "BP: $bpStr",
+                "Sugar: $sugarStr",
+                "HR: $hrStr",
+                if (medCount > 0) "$medCount Meds" else "No Meds"
+            )
+
+            _executiveSummary.value = AiExecutiveSummary(
+                title = "Total Clinical Executive Summary",
+                titleTe = "మొత్తం క్లినికల్ ఎగ్జిక్యూటివ్ సారాంశం",
+                reportScopeName = "Total Health Summary",
+                englishText = engSummaryBuilder.toString(),
+                teluguText = teSummaryBuilder.toString(),
+                keyMetrics = keyMetrics,
+                criticalAlertCount = criticalCount,
+                activeMedicationsCount = medCount,
+                lastUpdatedText = lastSync
+            )
+        } else {
+            // === REPORT-SPECIFIC SUMMARY ===
+            val record = cachedRecords.firstOrNull { it.id == currentScope.id }
+            val extracted = cachedExtractedInfos.firstOrNull { it.recordId == currentScope.id }
+            val reportBiomarkers = extracted?.let { MedicalFieldParser.deserializeResults(it.structuredResultsJson) } ?: emptyList()
+            val abnormalMarkers = reportBiomarkers.filter { it.isOutOfRange }
+            val reportDateStr = currentScope.date
+
+            val engBuilder = StringBuilder()
+            engBuilder.append("Individual Report Audit: ${currentScope.title} (Dated: $reportDateStr). ")
+            if (reportBiomarkers.isNotEmpty()) {
+                engBuilder.append("This document contains ${reportBiomarkers.size} extracted clinical markers. ")
+                if (abnormalMarkers.isNotEmpty()) {
+                    val abnormalDetails = abnormalMarkers.joinToString(", ") { "${it.testName}: ${it.value} ${it.unit}".trim() }
+                    engBuilder.append("Clinical Alert: ${abnormalMarkers.size} out-of-range test values detected ($abnormalDetails). These require clinical evaluation. ")
+                } else {
+                    engBuilder.append("All evaluated biomarkers in this diagnostic panel fall within normal physiological reference ranges. ")
+                }
+                val sampleMarkers = reportBiomarkers.take(4).joinToString(", ") { "${it.testName} (${it.value} ${it.unit})".trim() }
+                engBuilder.append("Key panel readings include: $sampleMarkers.")
+            } else {
+                engBuilder.append("Document verified and stored locally. Diagnostic structured extraction complete.")
+            }
+
+            val teBuilder = StringBuilder()
+            teBuilder.append("నిర్దిష్ట రిపోర్ట్ విశ్లేషణ: ${currentScope.titleTe} (తేదీ: $reportDateStr). ")
+            if (reportBiomarkers.isNotEmpty()) {
+                teBuilder.append("ఈ రిపోర్టులో ${reportBiomarkers.size} ల్యాబ్ పరీక్షల ఫలితాలు ఉన్నాయి. ")
+                if (abnormalMarkers.isNotEmpty()) {
+                    val abnormalDetails = abnormalMarkers.joinToString(", ") { "${it.testName}: ${it.value} ${it.unit}".trim() }
+                    teBuilder.append("హెచ్చరిక: ${abnormalMarkers.size} పరీక్ష ఫలితాలు సాధారణ పరిమితి కంటే వ్యత్యాసంగా ఉన్నాయి ($abnormalDetails). వైద్యుని దృష్టికి తీసుకువెళ్లండి. ")
+                } else {
+                    teBuilder.append("ఈ రిపోర్టులోని అన్ని ల్యాబ్ సూచికలు సాధారణ పరిమితుల్లో ఆరోగ్యకరంగా నమోదయ్యాయి. ")
+                }
+            } else {
+                teBuilder.append("ఈ పత్రం విజయవంతంగా నిక్షిప్తం చేయబడింది.")
+            }
+
+            val keyMetrics = if (reportBiomarkers.isNotEmpty()) {
+                reportBiomarkers.take(4).map { "${it.testName}: ${it.value}" }
+            } else {
+                listOf(currentScope.date, "Document Recorded")
+            }
+
+            _executiveSummary.value = AiExecutiveSummary(
+                title = currentScope.title,
+                titleTe = currentScope.titleTe,
+                reportScopeName = currentScope.title,
+                englishText = engBuilder.toString(),
+                teluguText = teBuilder.toString(),
+                keyMetrics = keyMetrics,
+                criticalAlertCount = abnormalMarkers.size,
+                activeMedicationsCount = if (currentScope.isPrescription) 1 else 0,
+                lastUpdatedText = lastSync
+            )
+        }
     }
 
     fun setLanguage(language: String) {
@@ -395,8 +592,45 @@ class AiAssistantViewModel(
 
     private fun generateClinicalResponse(query: String, isTelugu: Boolean): String {
         val lower = query.lowercase()
+        val currentReport = _selectedReport.value
 
-        // 1. Lab reports / Biomarkers
+        // If specific report is selected, provide report-specific response!
+        if (currentReport.id != null) {
+            val extracted = cachedExtractedInfos.firstOrNull { it.recordId == currentReport.id }
+            val reportBiomarkers = extracted?.let { MedicalFieldParser.deserializeResults(it.structuredResultsJson) } ?: emptyList()
+            val abnormal = reportBiomarkers.filter { it.isOutOfRange }
+
+            if (lower.contains("abnormal") || lower.contains("high") || lower.contains("low") || lower.contains("వ్యత్యాసం") || lower.contains("అసాధారణ")) {
+                return if (isTelugu) {
+                    if (abnormal.isNotEmpty()) {
+                        "${currentReport.titleTe} లో ${abnormal.size} పరీక్ష ఫలితాలు సాధారణ పరిమితి కంటే భిన్నంగా ఉన్నాయి:\n" +
+                                abnormal.joinToString("\n") { "• ${it.testName}: ${it.value} ${it.unit} (పరిమితి: ${it.referenceRange.ifBlank { "ల్యాబ్ ప్రమాణం" }})" } +
+                                "\n\nవైద్యుల సలహా: ఈ ఫలితాలను మీ తదుపరి అపాయింట్‌మెంట్‌లో తప్పక డాక్టర్‌కు చూపించండి."
+                    } else {
+                        "${currentReport.titleTe} లోని అన్ని పరీక్ష ఫలితాలు సాధారణ మరియు ఆరోగ్యకరమైన పరిమితుల్లో ఉన్నాయి!"
+                    }
+                } else {
+                    if (abnormal.isNotEmpty()) {
+                        "Out-of-range findings in ${currentReport.title}:\n" +
+                                abnormal.joinToString("\n") { "• ${it.testName}: ${it.value} ${it.unit} (Ref: ${it.referenceRange.ifBlank { "Standard" }}) [${it.status.name}]" } +
+                                "\n\nClinical Recommendation: Discuss these specific values with your doctor to adjust medications or order routine follow-ups."
+                    } else {
+                        "Good news! All evaluated markers in ${currentReport.title} are within normal physiological bounds."
+                    }
+                }
+            }
+
+            if (lower.contains("explain") || lower.contains("report") || lower.contains("వివరించండి") || lower.contains("సారాంశం")) {
+                val bioDetails = reportBiomarkers.take(5).joinToString("\n") { "• ${it.testName}: ${it.value} ${it.unit}".trim() }
+                return if (isTelugu) {
+                    "${currentReport.titleTe} క్లినికల్ సారాంశం (తేదీ: ${currentReport.date}):\n$bioDetails\n\nఈ నివేదిక మీ శరీర అవయవ పనితీరు మరియు రక్త విశ్లేషణను స్పష్టంగా ప్రతిబింబిస్తుంది."
+                } else {
+                    "Clinical Audit for ${currentReport.title} (${currentReport.date}):\n$bioDetails\n\nThis panel provides objective clinical insight into your organ systems and metabolic trajectory."
+                }
+            }
+        }
+
+        // 1. Lab reports / Biomarkers (General)
         if (lower.contains("lab") || lower.contains("report") || lower.contains("test") || lower.contains("biomarker") ||
             lower.contains("ల్యాబ్") || lower.contains("రిపోర్ట్") || lower.contains("పరీక్ష")) {
             return if (isTelugu) {

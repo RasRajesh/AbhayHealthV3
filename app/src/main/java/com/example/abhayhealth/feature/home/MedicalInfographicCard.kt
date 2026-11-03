@@ -133,7 +133,7 @@ fun MedicalInfographicCard(
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-            // Header: Status badge & Title
+            // Header: Clean unconstrained title and + Log Vital button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -146,9 +146,9 @@ fun MedicalInfographicCard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(9.dp)
                                 .clip(CircleShape)
-                                .background(neonCyan)
+                                .background(Color(0xFF10B981))
                         )
                         Text(
                             text = stringResource(id = R.string.home_infographic_title),
@@ -157,49 +157,29 @@ fun MedicalInfographicCard(
                             color = softWhite
                         )
                     }
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = stringResource(id = R.string.home_infographic_status),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF94A3B8)
                     )
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilledTonalButton(
-                        onClick = onLogVitalClick,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = neonBlue.copy(alpha = 0.22f),
-                            contentColor = neonBlue
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(30.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("+ Log Vital", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
+                Spacer(modifier = Modifier.width(8.dp))
 
-                    Surface(
-                        color = Color(0xFF1E293B),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, neonBlue.copy(alpha = 0.4f))
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.home_infographic_badge),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp
-                            ),
-                            color = neonBlue,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-                    }
+                FilledTonalButton(
+                    onClick = onLogVitalClick,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = neonBlue.copy(alpha = 0.22f),
+                        contentColor = neonBlue
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+ Log Vital", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -244,7 +224,7 @@ fun MedicalInfographicCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(220.dp)
+                    .height(230.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF090D16))
                     .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp)),
@@ -257,30 +237,66 @@ fun MedicalInfographicCard(
                     selectedOrgan = selectedOrganSystem
                 )
 
-                // High-tech overlay coordinates & perspective tags
+                // High-tech medical telemetry HUD overlay
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(10.dp)
+                        .padding(12.dp)
                 ) {
-                    Text(
-                        text = "SYS_ISO // 3D-MODEL [${selectedOrganSystem.code}]",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 9.sp
-                        ),
-                        color = neonCyan.copy(alpha = 0.7f),
-                        modifier = Modifier.align(Alignment.TopStart)
-                    )
-                    Text(
-                        text = "SCALE 1:1 • BIOMETRICS",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 9.sp
-                        ),
-                        color = Color(0xFF64748B),
-                        modifier = Modifier.align(Alignment.BottomEnd)
-                    )
+                    Row(
+                        modifier = Modifier.align(Alignment.TopStart),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(neonCyan)
+                        )
+                        Text(
+                            text = "ANATOMICAL TELEMETRY",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = neonCyan
+                        )
+                    }
+
+                    Surface(
+                        modifier = Modifier.align(Alignment.TopEnd),
+                        color = Color(0xFF1E293B).copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, neonCyan.copy(alpha = 0.3f))
+                    ) {
+                        Text(
+                            text = selectedOrganSystem.displayName.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = neonCyan,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.align(Alignment.BottomStart),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "REAL-TIME PHYSIOLOGICAL MAPPING",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 8.5.sp
+                            ),
+                            color = Color(0xFF64748B)
+                        )
+                    }
                 }
             }
 
@@ -517,58 +533,53 @@ private fun TranslucentBodyCanvas(
         val cx = w / 2f
         val cy = h / 2f
 
-        // 1. Isometric Floor Grid
-        val floorY = h * 0.82f
-        val gridLines = 7
-        val dashEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
-
-        for (i in 0..gridLines) {
-            val yOffset = floorY + (i * 6f)
-            val spread = (w * 0.42f) + (i * 12f)
-            drawLine(
-                color = neonBlue.copy(alpha = 0.12f + (i * 0.02f)),
-                start = Offset(cx - spread, yOffset),
-                end = Offset(cx + spread, yOffset),
-                strokeWidth = 1f
-            )
-        }
-
-        // Isometric perspective diagonal projection lines
-        for (i in -4..4) {
-            val startX = cx + (i * 28f)
-            val endX = cx + (i * 62f)
-            drawLine(
-                color = neonCyan.copy(alpha = 0.14f),
-                start = Offset(startX, floorY - 10f),
-                end = Offset(endX, h - 4f),
-                strokeWidth = 1.2f,
-                pathEffect = dashEffect
-            )
-        }
-
-        // 2. Isometric Base Pedestal Rings
-        drawOval(
-            color = neonCyan.copy(alpha = 0.22f),
-            topLeft = Offset(cx - 70f, floorY - 14f),
-            size = Size(140f, 32f),
-            style = Stroke(width = 2f)
-        )
-        drawOval(
-            color = neonBlue.copy(alpha = 0.12f),
-            topLeft = Offset(cx - 95f, floorY - 20f),
-            size = Size(190f, 44f),
-            style = Stroke(width = 1.5f, pathEffect = dashEffect)
-        )
-
-        // 3. Central Translucent 3D Human Body Silhouette
-        // Proportions mapped to canvas height (approx 180dp vertical scale)
-        val headY = h * 0.12f
-        val headRadius = 14f
-
-        // Head Silhouette
+        // 1. Ambient Medical Diagnostic Glow
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(neonCyan.copy(alpha = 0.55f), neonBlue.copy(alpha = 0.18f)),
+                colors = listOf(
+                    neonCyan.copy(alpha = 0.16f),
+                    neonBlue.copy(alpha = 0.08f),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy - 10f),
+                radius = h * 0.55f
+            ),
+            radius = h * 0.55f,
+            center = Offset(cx, cy - 10f)
+        )
+
+        // 2. High-Tech Isometric Base Pedestal
+        val floorY = h * 0.84f
+        drawOval(
+            brush = Brush.radialGradient(
+                colors = listOf(neonCyan.copy(alpha = 0.25f), Color.Transparent),
+                center = Offset(cx, floorY),
+                radius = 85f
+            ),
+            topLeft = Offset(cx - 75f, floorY - 14f),
+            size = Size(150f, 28f)
+        )
+        drawOval(
+            color = neonCyan.copy(alpha = 0.45f),
+            topLeft = Offset(cx - 65f, floorY - 12f),
+            size = Size(130f, 24f),
+            style = Stroke(width = 1.5f)
+        )
+        drawOval(
+            color = neonBlue.copy(alpha = 0.2f),
+            topLeft = Offset(cx - 90f, floorY - 16f),
+            size = Size(180f, 32f),
+            style = Stroke(width = 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f))
+        )
+
+        // 3. Realistic Anatomical Human Body Silhouette (Smooth Curves)
+        val headY = h * 0.11f
+        val headRadius = 14f
+
+        // Head & Cranium
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color.White.copy(alpha = 0.5f), neonCyan.copy(alpha = 0.35f), neonBlue.copy(alpha = 0.15f)),
                 center = Offset(cx, headY),
                 radius = headRadius
             ),
@@ -576,157 +587,198 @@ private fun TranslucentBodyCanvas(
             center = Offset(cx, headY)
         )
         drawCircle(
-            color = neonCyan.copy(alpha = 0.8f),
+            color = neonCyan.copy(alpha = 0.85f),
             radius = headRadius,
             center = Offset(cx, headY),
-            style = Stroke(width = 1.8f)
+            style = Stroke(width = 1.5f)
         )
 
-        // Body Anatomical Path (Neck, Shoulders, Torso, Arms, Pelvis, Legs)
+        // Smooth Organic Body Path (Trapezius, Shoulders, Deltoids, Chest, Waist, Hips, Legs)
         val bodyPath = Path().apply {
-            // Neck
+            // Start at neck
             moveTo(cx - 5f, headY + headRadius)
-            lineTo(cx - 26f, headY + headRadius + 12f) // Left shoulder
-            lineTo(cx - 40f, headY + headRadius + 44f) // Left upper arm
-            lineTo(cx - 46f, headY + headRadius + 75f) // Left forearm / wrist
-            lineTo(cx - 36f, headY + headRadius + 75f)
-            lineTo(cx - 28f, headY + headRadius + 48f) // Inner left arm
-            lineTo(cx - 22f, headY + headRadius + 60f) // Left waist
-            lineTo(cx - 24f, headY + headRadius + 85f) // Left hip
-            lineTo(cx - 20f, floorY - 10f)              // Left leg to ankle
-            lineTo(cx - 6f, floorY - 10f)               // Left foot base
-            lineTo(cx - 4f, headY + headRadius + 90f)  // Crotch
-            lineTo(cx + 4f, headY + headRadius + 90f)
-            lineTo(cx + 6f, floorY - 10f)               // Right foot base
-            lineTo(cx + 20f, floorY - 10f)              // Right leg to ankle
-            lineTo(cx + 24f, headY + headRadius + 85f) // Right hip
-            lineTo(cx + 22f, headY + headRadius + 60f) // Right waist
-            lineTo(cx + 28f, headY + headRadius + 48f) // Inner right arm
-            lineTo(cx + 36f, headY + headRadius + 75f)
-            lineTo(cx + 46f, headY + headRadius + 75f) // Right forearm / wrist
-            lineTo(cx + 40f, headY + headRadius + 44f) // Right upper arm
-            lineTo(cx + 26f, headY + headRadius + 12f) // Right shoulder
-            lineTo(cx + 5f, headY + headRadius)
+            // Trapezius & Left Shoulder Curve
+            quadraticBezierTo(cx - 16f, headY + headRadius + 4f, cx - 26f, headY + headRadius + 12f)
+            // Left Deltoid & Bicep Curve
+            quadraticBezierTo(cx - 36f, headY + headRadius + 28f, cx - 38f, headY + headRadius + 46f)
+            // Left Forearm to Wrist
+            quadraticBezierTo(cx - 42f, headY + headRadius + 64f, cx - 44f, headY + headRadius + 76f)
+            // Left Hand
+            lineTo(cx - 36f, headY + headRadius + 76f)
+            // Inner Forearm & Armpit
+            quadraticBezierTo(cx - 34f, headY + headRadius + 60f, cx - 26f, headY + headRadius + 42f)
+            // Left Chest & Waist Curve
+            quadraticBezierTo(cx - 20f, headY + headRadius + 58f, cx - 22f, headY + headRadius + 70f)
+            // Left Hip & Thigh
+            quadraticBezierTo(cx - 24f, headY + headRadius + 84f, cx - 18f, headY + headRadius + 110f)
+            // Left Knee & Calf
+            quadraticBezierTo(cx - 16f, floorY - 24f, cx - 17f, floorY - 8f)
+            // Left Ankle & Foot
+            lineTo(cx - 7f, floorY - 8f)
+            // Inner Left Leg to Crotch
+            quadraticBezierTo(cx - 9f, headY + headRadius + 110f, cx - 2f, headY + headRadius + 90f)
+            // Crotch
+            lineTo(cx + 2f, headY + headRadius + 90f)
+            // Inner Right Leg from Crotch
+            quadraticBezierTo(cx + 9f, headY + headRadius + 110f, cx + 7f, floorY - 8f)
+            // Right Ankle & Foot
+            lineTo(cx + 17f, floorY - 8f)
+            // Right Calf & Knee
+            quadraticBezierTo(cx + 16f, floorY - 24f, cx + 18f, headY + headRadius + 110f)
+            // Right Thigh & Hip
+            quadraticBezierTo(cx + 24f, headY + headRadius + 84f, cx + 22f, headY + headRadius + 70f)
+            // Right Waist & Chest
+            quadraticBezierTo(cx + 20f, headY + headRadius + 58f, cx + 26f, headY + headRadius + 42f)
+            // Inner Right Arm
+            quadraticBezierTo(cx + 34f, headY + headRadius + 60f, cx + 36f, headY + headRadius + 76f)
+            // Right Hand
+            lineTo(cx + 44f, headY + headRadius + 76f)
+            // Right Forearm & Bicep
+            quadraticBezierTo(cx + 42f, headY + headRadius + 64f, cx + 38f, headY + headRadius + 46f)
+            // Right Deltoid
+            quadraticBezierTo(cx + 36f, headY + headRadius + 28f, cx + 26f, headY + headRadius + 12f)
+            // Right Trapezius to Neck
+            quadraticBezierTo(cx + 16f, headY + headRadius + 4f, cx + 5f, headY + headRadius)
             close()
         }
 
-        // Translucent gradient fill for the 3D body silhouette
+        // Translucent Anatomical Gradient Fill
         drawPath(
             path = bodyPath,
             brush = Brush.verticalGradient(
                 colors = listOf(
-                    neonCyan.copy(alpha = 0.40f),
-                    neonBlue.copy(alpha = 0.22f),
-                    Color(0xFF1E3A8A).copy(alpha = 0.28f)
+                    neonCyan.copy(alpha = 0.38f),
+                    neonBlue.copy(alpha = 0.24f),
+                    Color(0xFF0284C7).copy(alpha = 0.20f),
+                    Color(0xFF1E3A8A).copy(alpha = 0.15f)
                 ),
                 startY = headY,
                 endY = floorY
             )
         )
 
-        // Holographic Outer Contour Stroke
+        // Holographic Outer Silhouette Stroke
         drawPath(
             path = bodyPath,
-            color = neonCyan.copy(alpha = 0.75f),
-            style = Stroke(width = 2f, cap = StrokeCap.Round)
+            color = neonCyan.copy(alpha = 0.7f),
+            style = Stroke(width = 1.6f, cap = StrokeCap.Round)
         )
 
-        // 4. Glowing Neural / Spinal Core Line
-        val spineStart = headY + headRadius + 6f
-        val spineEnd = headY + headRadius + 85f
+        // 4. Glowing Internal Anatomical Organs
+        val chestCenterY = headY + headRadius + 32f
+
+        // Respiratory: Bilateral Lung Fields
+        val lungAlpha = if (selectedOrgan == OrganSystem.HEMIC || selectedOrgan == OrganSystem.ALL) 0.35f else 0.15f
+        drawOval(
+            color = neonCyan.copy(alpha = lungAlpha),
+            topLeft = Offset(cx - 19f, chestCenterY - 14f),
+            size = Size(13f, 24f)
+        )
+        drawOval(
+            color = neonCyan.copy(alpha = lungAlpha),
+            topLeft = Offset(cx + 6f, chestCenterY - 14f),
+            size = Size(13f, 24f)
+        )
+
+        // Cardiovascular: Heart Core with Rhythmic Arterial Heartbeat Pulse
+        val heartPos = Offset(cx - 8f, chestCenterY - 2f)
+        val heartBeatScale = 1f + 0.35f * kotlin.math.sin(pulse * Math.PI.toFloat() * 2f).coerceAtLeast(0f)
+        val heartAlpha = if (selectedOrgan == OrganSystem.CARDIO || selectedOrgan == OrganSystem.ALL) 0.9f else 0.5f
+
+        // Expanding cardiac pulse wave
+        drawCircle(
+            color = Color(0xFFF43F5E).copy(alpha = 0.25f * (2f - heartBeatScale)),
+            radius = 12f * heartBeatScale,
+            center = heartPos
+        )
+        // Solid pulsing heart core
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color.White, Color(0xFFF43F5E), Color(0xFFE11D48).copy(alpha = 0.7f)),
+                center = heartPos,
+                radius = 7f * heartBeatScale
+            ),
+            radius = 6f * heartBeatScale,
+            center = heartPos
+        )
+
+        // Endocrine / Pancreas Node (Upper Abdomen)
+        val pancreasPos = Offset(cx + 2f, chestCenterY + 22f)
+        drawCircle(
+            color = Color(0xFF34D399).copy(alpha = if (selectedOrgan == OrganSystem.METABOLIC || selectedOrgan == OrganSystem.ALL) 0.8f else 0.4f),
+            radius = 4.5f,
+            center = pancreasPos
+        )
+
+        // Renal: Kidneys (Bilateral Flank Nodes)
+        val kidneyAlpha = if (selectedOrgan == OrganSystem.RENAL || selectedOrgan == OrganSystem.ALL) 0.75f else 0.3f
+        drawCircle(color = Color(0xFFA855F7).copy(alpha = kidneyAlpha), radius = 3.5f, center = Offset(cx - 12f, chestCenterY + 28f))
+        drawCircle(color = Color(0xFFA855F7).copy(alpha = kidneyAlpha), radius = 3.5f, center = Offset(cx + 12f, chestCenterY + 28f))
+
+        // Spinal Telemetry Line
         drawLine(
             brush = Brush.verticalGradient(
-                colors = listOf(Color.White, neonCyan, neonBlue.copy(alpha = 0.3f)),
-                startY = spineStart,
-                endY = spineEnd
+                colors = listOf(Color.White.copy(alpha = 0.7f), neonCyan.copy(alpha = 0.5f), Color.Transparent),
+                startY = headY + headRadius + 4f,
+                endY = floorY - 30f
             ),
-            start = Offset(cx, spineStart),
-            end = Offset(cx, spineEnd),
-            strokeWidth = 2.5f
+            start = Offset(cx, headY + headRadius + 4f),
+            end = Offset(cx, floorY - 30f),
+            strokeWidth = 1.2f
         )
 
-        // 5. Horizontal Moving Laser Scanning Beam
+        // 5. Smooth Horizontal Laser Scanning Sweep
         val scanY = headY + (floorY - headY) * pulse
         drawLine(
             brush = Brush.horizontalGradient(
                 colors = listOf(
                     Color.Transparent,
-                    neonCyan.copy(alpha = 0.85f),
-                    Color.White.copy(alpha = 0.95f),
-                    neonCyan.copy(alpha = 0.85f),
+                    neonCyan.copy(alpha = 0.3f),
+                    Color.White.copy(alpha = 0.9f),
+                    neonCyan.copy(alpha = 0.3f),
                     Color.Transparent
                 ),
-                startX = cx - 70f,
-                endX = cx + 70f
+                startX = cx - 60f,
+                endX = cx + 60f
             ),
-            start = Offset(cx - 70f, scanY),
-            end = Offset(cx + 70f, scanY),
-            strokeWidth = 2.2f
+            start = Offset(cx - 60f, scanY),
+            end = Offset(cx + 60f, scanY),
+            strokeWidth = 1.8f
         )
 
-        // 6. Biometric Telemetry Locator Nodes with Glowing Beacon Rings
-        // Node 1: Heart (Left chest) -> Heart Rate / Cardio
-        val heartPos = Offset(cx - 10f, headY + headRadius + 32f)
-        val heartPulse = if (selectedOrgan == OrganSystem.CARDIO) (pulse * 1.4f).coerceAtMost(1f) else pulse
-        drawBeaconNode(heartPos, Color(0xFFF43F5E), heartPulse)
-
-        // Node 2: Abdomen (Metabolic) -> Blood Sugar
-        val sugarPos = Offset(cx + 4f, headY + headRadius + 56f)
-        val sugarPulse = if (selectedOrgan == OrganSystem.METABOLIC) (pulse * 1.4f).coerceAtMost(1f) else pulse
-        drawBeaconNode(sugarPos, Color(0xFF34D399), sugarPulse)
-
-        // Node 3: Right Forearm / Wrist -> Blood Pressure / Cardio
-        val bpPos = Offset(cx + 41f, headY + headRadius + 70f)
-        val bpPulse = if (selectedOrgan == OrganSystem.CARDIO) (pulse * 1.4f).coerceAtMost(1f) else pulse
-        drawBeaconNode(bpPos, Color(0xFF38BDF8), bpPulse)
-
-        // Node 4: Left Arm / Lung -> SpO2
-        val spo2Pos = Offset(cx - 28f, headY + headRadius + 36f)
-        drawBeaconNode(spo2Pos, Color(0xFF60A5FA), pulse)
-
-        // Node 5: Hepatic / Liver (Right hypochondrium)
-        val liverPos = Offset(cx + 14f, headY + headRadius + 44f)
-        if (selectedOrgan == OrganSystem.HEPATIC || selectedOrgan == OrganSystem.ALL) {
-            drawBeaconNode(liverPos, Color(0xFFF59E0B), if (selectedOrgan == OrganSystem.HEPATIC) (pulse * 1.5f).coerceAtMost(1f) else pulse * 0.7f)
-        }
-
-        // Node 6: Renal / Kidneys (Posterior lumbar)
-        val kidneyPos = Offset(cx - 14f, headY + headRadius + 52f)
-        if (selectedOrgan == OrganSystem.RENAL || selectedOrgan == OrganSystem.ALL) {
-            drawBeaconNode(kidneyPos, Color(0xFFA855F7), if (selectedOrgan == OrganSystem.RENAL) (pulse * 1.5f).coerceAtMost(1f) else pulse * 0.7f)
-        }
-
-        // 7. Connector Telemetry Leader Lines from Nodes to Bounds
-        // Leader line 1: Blood Pressure (toward bottom right)
+        // 6. Connected Telemetry Leader Lines to Peripheral Metrics
+        val bpPos = Offset(cx + 40f, headY + headRadius + 70f)
+        drawBeaconNode(bpPos, Color(0xFF38BDF8), pulse)
         drawLeaderLine(
             start = bpPos,
-            mid = Offset(bpPos.x + 24f, bpPos.y - 12f),
-            end = Offset(w - 20f, bpPos.y - 12f),
-            color = Color(0xFF38BDF8).copy(alpha = if (selectedOrgan == OrganSystem.CARDIO) 0.9f else 0.5f)
+            mid = Offset(bpPos.x + 22f, bpPos.y - 10f),
+            end = Offset(w - 18f, bpPos.y - 10f),
+            color = Color(0xFF38BDF8).copy(alpha = 0.6f)
         )
 
-        // Leader line 2: Heart Rate (toward left)
+        drawBeaconNode(heartPos, Color(0xFFF43F5E), pulse)
         drawLeaderLine(
             start = heartPos,
-            mid = Offset(heartPos.x - 30f, heartPos.y - 10f),
-            end = Offset(20f, heartPos.y - 10f),
-            color = Color(0xFFF43F5E).copy(alpha = if (selectedOrgan == OrganSystem.CARDIO) 0.9f else 0.5f)
+            mid = Offset(heartPos.x - 26f, heartPos.y - 12f),
+            end = Offset(18f, heartPos.y - 12f),
+            color = Color(0xFFF43F5E).copy(alpha = 0.6f)
         )
 
-        // Leader line 3: Blood Sugar (toward bottom right)
+        drawBeaconNode(pancreasPos, Color(0xFF34D399), pulse)
         drawLeaderLine(
-            start = sugarPos,
-            mid = Offset(sugarPos.x + 36f, sugarPos.y + 16f),
-            end = Offset(w - 20f, sugarPos.y + 16f),
-            color = Color(0xFF34D399).copy(alpha = if (selectedOrgan == OrganSystem.METABOLIC) 0.9f else 0.5f)
+            start = pancreasPos,
+            mid = Offset(pancreasPos.x + 32f, pancreasPos.y + 16f),
+            end = Offset(w - 18f, pancreasPos.y + 16f),
+            color = Color(0xFF34D399).copy(alpha = 0.6f)
         )
 
-        // Leader line 4: SpO2 (toward top left)
+        val spo2Pos = Offset(cx - 14f, chestCenterY - 10f)
+        drawBeaconNode(spo2Pos, Color(0xFF60A5FA), pulse)
         drawLeaderLine(
             start = spo2Pos,
             mid = Offset(spo2Pos.x - 30f, spo2Pos.y + 18f),
-            end = Offset(20f, spo2Pos.y + 18f),
-            color = Color(0xFF60A5FA).copy(alpha = 0.5f)
+            end = Offset(18f, spo2Pos.y + 18f),
+            color = Color(0xFF60A5FA).copy(alpha = 0.6f)
         )
     }
 }
