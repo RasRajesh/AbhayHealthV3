@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Person
@@ -24,16 +25,16 @@ sealed class BottomNavItem(
         icon = Icons.Default.Home
     )
 
+    data object Assistant : BottomNavItem(
+        route = NavRoutes.MainTab.AI_ASSISTANT,
+        titleRes = R.string.nav_ai_assistant,
+        icon = Icons.Default.AutoAwesome
+    )
+
     data object Records : BottomNavItem(
         route = NavRoutes.MainTab.RECORDS,
         titleRes = R.string.nav_records,
         icon = Icons.AutoMirrored.Filled.ReceiptLong
-    )
-
-    data object Trends : BottomNavItem(
-        route = NavRoutes.MainTab.TRENDS,
-        titleRes = R.string.nav_trends,
-        icon = Icons.AutoMirrored.Filled.TrendingUp
     )
 
     data object Medicines : BottomNavItem(
@@ -49,6 +50,6 @@ sealed class BottomNavItem(
     )
 
     companion object {
-        val items = listOf(Home, Records, Trends, Medicines, Me)
+        val items = listOf(Home, Assistant, Records, Medicines, Me)
     }
 }
