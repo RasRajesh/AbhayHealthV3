@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,14 +39,20 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -76,6 +84,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -104,6 +114,7 @@ fun AiAssistantScreen(
     val listState = rememberLazyListState()
 
     var inputPrompt by remember { mutableStateOf("") }
+    var expandedPreviewImagePath by remember { mutableStateOf<String?>(null) }
 
     // Scroll to bottom on new message
     LaunchedEffect(chatMessages.size, isProcessing) {
@@ -112,17 +123,26 @@ fun AiAssistantScreen(
         }
     }
 
+    if (expandedPreviewImagePath != null) {
+        DocumentImagePreviewDialog(
+            imagePath = expandedPreviewImagePath!!,
+            onDismiss = { expandedPreviewImagePath = null }
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // 1. Screen Header with Language Toggle
+        // 1. Screen Header with Prominent Voice Reader & Language Switcher
         AssistantHeader(
             selectedLanguage = selectedLanguage,
             onLanguageSelected = { viewModel.setLanguage(it) },
             isSpeaking = isSpeaking,
-            onStopSpeaking = { viewModel.stopSpeaking() }
+            onStopSpeaking = { viewModel.stopSpeaking() },
+            onToggleVoiceReader = { viewModel.speakExecutiveSummary() },
+            onClearChat = { viewModel.clearChatSession() }
         )
 
         // 2. Chat and Executive Summary Stream
@@ -143,6 +163,17 @@ fun AiAssistantScreen(
                     onSelectReport = { viewModel.selectReport(it) },
                     isTelugu = isTelugu
                 )
+            }
+
+            // Attached Document Scan Preview (if current selected report has a document image)
+            if (!selectedReport.localFilePath.isNullOrBlank()) {
+                item {
+                    ReportDocumentPreviewCard(
+                        report = selectedReport,
+                        isTelugu = isTelugu,
+                        onImageClick = { expandedPreviewImagePath = selectedReport.localFilePath }
+                    )
+                }
             }
 
             // Executive Document Summary Card with Speaker Read-Out
@@ -193,6 +224,9 @@ fun AiAssistantScreen(
                     },
                     onSuggestionClick = { prompt ->
                         viewModel.sendUserMessage(prompt)
+                    },
+                    onImageClick = { path ->
+                        expandedPreviewImagePath = path
                     }
                 )
             }
@@ -297,18 +331,22 @@ private fun AssistantHeader(
     onLanguageSelected: (String) -> Unit,
     isSpeaking: Boolean,
     onStopSpeaking: () -> Unit,
+    onToggleVoiceReader: () -> Unit,
+    onClearChat: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        tonalElevation = 2.dp,
+        tonalElevation = 3.dp,
         color = MaterialTheme.colorScheme.surface,
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Row 1: Brand Title + New Chat + Language Switcher
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -347,15 +385,28 @@ private fun AssistantHeader(
                     }
                 }
 
-                // Language Switcher Chips
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // New Session / Clear chat
+                    IconButton(
+                        onClick = onClearChat,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "New Session",
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    // Language Switcher Chips
                     FilterChip(
                         selected = selectedLanguage == "English",
                         onClick = { onLanguageSelected("English") },
-                        label = { Text("English", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
-                        leadingIcon = if (selectedLanguage == "English") {
-                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                        } else null,
+                        label = { Text("EN", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -365,10 +416,7 @@ private fun AssistantHeader(
                     FilterChip(
                         selected = selectedLanguage == "Telugu",
                         onClick = { onLanguageSelected("Telugu") },
-                        label = { Text("తెలుగు", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
-                        leadingIcon = if (selectedLanguage == "Telugu") {
-                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                        } else null,
+                        label = { Text("తెలుగు", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -377,37 +425,257 @@ private fun AssistantHeader(
                 }
             }
 
-            if (isSpeaking) {
-                Spacer(modifier = Modifier.height(6.dp))
+            // Row 2: Prominent Dedicated Sound & Speaker Voice Reader Bar
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isSpeaking) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, if (isSpeaking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        SoundWaveIndicator()
-                        Text(
-                            text = if (selectedLanguage == "Telugu") "ఆడియో చదువుతోంది..." else "Speaking document summary...",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isSpeaking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isSpeaking) Icons.Default.Hearing else Icons.Default.VolumeUp,
+                                    contentDescription = null,
+                                    tint = if (isSpeaking) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = if (selectedLanguage == "Telugu") "ఆడియో వాయిస్ రీడర్ (స్పీకర్)" else "CLINICAL VOICE READER",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                ),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = if (isSpeaking) {
+                                    if (selectedLanguage == "Telugu") "సారాంశం చదువుతోంది..." else "Reading document audio..."
+                                } else {
+                                    if (selectedLanguage == "Telugu") "డాక్యుమెంట్ సారాంశం వినండి" else "Listen to document summary"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
                     }
-                    TextButton(
-                        onClick = onStopSpeaking,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+
+                    FilledTonalButton(
+                        onClick = if (isSpeaking) onStopSpeaking else onToggleVoiceReader,
+                        shape = RoundedCornerShape(20.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = if (isSpeaking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isSpeaking) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.testTag("header_voice_reader_btn")
                     ) {
-                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (selectedLanguage == "Telugu") "ఆపు" else "Stop", fontSize = 12.sp)
+                        if (isSpeaking) {
+                            SoundWaveIndicator()
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (selectedLanguage == "Telugu") "ఆపు ⏹" else "Stop ⏹", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        } else {
+                            Icon(Icons.Default.VolumeUp, contentDescription = "Listen", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (selectedLanguage == "Telugu") "వినండి 🔊" else "Listen 🔊", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ReportDocumentPreviewCard(
+    report: ReportOption,
+    isTelugu: Boolean,
+    onImageClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (report.localFilePath.isNullOrBlank()) return
+
+    val bitmap = remember(report.localFilePath) {
+        try {
+            BitmapFactory.decodeFile(report.localFilePath)
+        } catch (_: Exception) { null }
+    }
+
+    if (bitmap == null) return
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("report_document_preview_card"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = if (isTelugu) "అప్‌లోడ్ చేసిన రిపోర్ట్ స్కాన్" else "ATTACHED DOCUMENT SCAN",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                ) {
+                    Text(
+                        text = report.date,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(onClick = onImageClick)
+            ) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Document Scan Preview",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Black.copy(alpha = 0.65f),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ZoomIn,
+                            contentDescription = "Zoom",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = if (isTelugu) "పూర్తిగా చూడండి" else "Tap to Zoom",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentImagePreviewDialog(
+    imagePath: String,
+    onDismiss: () -> Unit
+) {
+    val bitmap = remember(imagePath) {
+        try {
+            BitmapFactory.decodeFile(imagePath)
+        } catch (_: Exception) { null }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Document Scan", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+        },
+        text = {
+            if (bitmap != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(350.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                ) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "Full Scan",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            } else {
+                Text("Unable to load document image.")
+            }
+        }
+    )
 }
 
 @Composable
@@ -808,11 +1076,21 @@ private fun ChatMessageBubble(
     isSpeakingThis: Boolean,
     onSpeak: () -> Unit,
     onSuggestionClick: (String) -> Unit,
+    onImageClick: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isUser = message.sender == MessageSender.USER
+    val isTelugu = message.language == "Telugu"
     val timeStr = remember(message.timestamp) {
         SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(message.timestamp))
+    }
+
+    val bubbleBitmap = remember(message.imagePath) {
+        message.imagePath?.let { path ->
+            try {
+                BitmapFactory.decodeFile(path)
+            } catch (_: Exception) { null }
+        }
     }
 
     Column(
@@ -865,6 +1143,46 @@ private fun ChatMessageBubble(
                     modifier = Modifier.testTag(if (isUser) "user_chat_bubble" else "ai_chat_bubble")
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
+                        // Display attached document scan thumbnail if present
+                        if (bubbleBitmap != null && !message.imagePath.isNullOrBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(140.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onImageClick?.invoke(message.imagePath) }
+                            ) {
+                                Image(
+                                    bitmap = bubbleBitmap.asImageBitmap(),
+                                    contentDescription = "Document Scan Thumbnail",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.Black.copy(alpha = 0.65f),
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(Icons.Default.ZoomIn, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                        Text(
+                                            text = if (isTelugu) "విస్తరించండి" else "Zoom",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
                         Text(
                             text = message.text,
                             style = MaterialTheme.typography.bodyMedium,
@@ -872,7 +1190,7 @@ private fun ChatMessageBubble(
                             lineHeight = 20.sp
                         )
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -887,17 +1205,45 @@ private fun ChatMessageBubble(
                             )
 
                             if (!isUser) {
-                                // Speak this response button
-                                IconButton(
-                                    onClick = onSpeak,
-                                    modifier = Modifier.size(24.dp)
+                                // Prominent Voice Speaker button on response
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = if (isSpeakingThis) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isSpeakingThis) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                    ),
+                                    modifier = Modifier.clickable(onClick = onSpeak)
                                 ) {
-                                    Icon(
-                                        imageVector = if (isSpeakingThis) Icons.Default.Stop else Icons.Default.VolumeUp,
-                                        contentDescription = "Speak Response",
-                                        tint = if (isSpeakingThis) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (isSpeakingThis) {
+                                            SoundWaveIndicator()
+                                            Text(
+                                                text = if (isTelugu) "ఆపు" else "Stop",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.VolumeUp,
+                                                contentDescription = "Speak Response",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Text(
+                                                text = if (isTelugu) "వినండి 🔊" else "Listen 🔊",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

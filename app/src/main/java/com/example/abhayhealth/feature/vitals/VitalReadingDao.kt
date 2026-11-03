@@ -25,6 +25,12 @@ interface VitalReadingDao {
     @Delete
     fun deleteReading(reading: VitalReadingEntity): Int
 
+    @Query("DELETE FROM vital_readings WHERE accountUid = :accountUid")
+    fun deleteAllByAccount(accountUid: String): Int
+
+    @Query("DELETE FROM vital_readings")
+    fun deleteAllReadings(): Int
+
     @Query("SELECT COUNT(*) FROM vital_readings WHERE accountUid = :accountUid")
     fun getReadingCount(accountUid: String): Int
 }

@@ -44,6 +44,20 @@ class FakeVitalReadingDao : VitalReadingDao {
         return if (removed) 1 else 0
     }
 
+    override fun deleteAllByAccount(accountUid: String): Int {
+        val countBefore = readings.size
+        readings.removeAll { it.accountUid == accountUid }
+        updateFlow()
+        return countBefore - readings.size
+    }
+
+    override fun deleteAllReadings(): Int {
+        val count = readings.size
+        readings.clear()
+        updateFlow()
+        return count
+    }
+
     override fun getReadingCount(accountUid: String): Int {
         return readings.count { it.accountUid == accountUid }
     }
@@ -89,5 +103,32 @@ class VitalReadingRepositoryTest {
         assertEquals(120.0, readings[0].systolic ?: 0.0, 0.01)
         assertEquals(80.0, readings[0].diastolic ?: 0.0, 0.01)
         assertEquals("After morning walk", readings[0].notes)
+    }
+
+    @Test
+    fun testDeleteAllByAccount_clearsAllReadingsForTargetAccount() = runBlocking {
+        val reading1 = VitalReadingEntity(
+            id = 1L,
+            accountUid = "user_del",
+            type = VitalType.WEIGHT.name,
+            weightKg = 70.0,
+            timestamp = System.currentTimeMillis()
+        )
+        val reading2 = VitalReadingEntity(
+            id = 2L,
+            accountUid = "user_keep",
+            type = VitalType.WEIGHT.name,
+            weightKg = 80.0,
+            timestamp = System.currentTimeMillis()
+        )
+
+        repository.insertReading(reading1)
+        repository.insertReading(reading2)
+        assertEquals(2, fakeDao.getReadingCount("user_del") + fakeDao.getReadingCount("user_keep"))
+
+        repository.deleteAllByAccount("user_del")
+
+        assertEquals(0, fakeDao.getReadingCount("user_del"))
+        assertEquals(1, fakeDao.getReadingCount("user_keep"))
     }
 }
