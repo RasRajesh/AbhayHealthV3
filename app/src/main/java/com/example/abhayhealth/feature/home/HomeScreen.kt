@@ -51,7 +51,9 @@ import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Timeline
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
@@ -78,6 +80,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,6 +104,7 @@ import com.example.abhayhealth.feature.medicines.MedicationDailyTimelineGraph
 import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.vitals.AddVitalReadingDialog
 import com.example.abhayhealth.feature.vitals.HealthTrendsChartCard
+import com.example.abhayhealth.feature.vitals.VitalType
 
 @Composable
 fun HomeScreen(
@@ -121,6 +126,7 @@ fun HomeScreen(
     val extractedInfos by viewModel.extractedInfos.collectAsState()
     val extractedBiomarkers by viewModel.extractedBiomarkers.collectAsState()
     val todayMedications by viewModel.todayMedications.collectAsState()
+    var selectedBiomarkerModal by remember { mutableStateOf<SelectedBiomarkerModal?>(null) }
 
     val greetingText = if (!patientName.isNullOrBlank()) {
         stringResource(id = R.string.home_greeting_user, patientName!!)
@@ -218,16 +224,7 @@ fun HomeScreen(
             }
         }
 
-        // 2. AI Health Assistant Action Button
-        item {
-            AiAssistActionButton(
-                onClick = {
-                    viewModel.showDialog(AiDialogType.AI_ASSISTANT_MODAL)
-                }
-            )
-        }
-
-        // 4. Professional Medical Infographic Data Visualization (Central 3D Translucent Silhouette & High-Tech Callouts)
+        // 2. Biometric Health Telemeter (Central Medical Infographic Silhouette & Clinical Telemetry)
         item {
             MedicalInfographicCard(
                 bloodPressure = latestBp,
@@ -235,8 +232,18 @@ fun HomeScreen(
                 heartRate = latestHr,
                 spO2 = latestSpo2,
                 extractedBiomarkers = extractedBiomarkers,
-                onMetricClick = {
+                onLogVitalClick = {
                     viewModel.showAddVitalDialog(true)
+                },
+                onMetricClick = { name, bio ->
+                    val displayVal = when (name.lowercase()) {
+                        "blood pressure" -> latestBp
+                        "blood sugar" -> latestSugar
+                        "heart rate" -> latestHr
+                        "spo2" -> latestSpo2
+                        else -> bio?.let { "${it.value} ${it.unit}".trim() }
+                    }
+                    selectedBiomarkerModal = SelectedBiomarkerModal(name, bio, displayVal)
                 }
             )
         }
@@ -596,89 +603,260 @@ fun HomeScreen(
             }
         )
     }
+
+    selectedBiomarkerModal?.let { modal ->
+        BiomarkerDetailDialog(
+            modal = modal,
+            onDismiss = { selectedBiomarkerModal = null },
+            onLogVital = {
+                val metricType = if (modal.name.contains("weight", ignoreCase = true)) {
+                    VitalType.WEIGHT
+                } else {
+                    VitalType.BLOOD_PRESSURE
+                }
+                viewModel.selectVitalMetric(metricType)
+                selectedBiomarkerModal = null
+                viewModel.showAddVitalDialog(true)
+            }
+        )
+    }
 }
 
+data class SelectedBiomarkerModal(
+    val name: String,
+    val biomarker: ParsedMedicalResult? = null,
+    val displayValue: String? = null
+)
+
 @Composable
-private fun AiAssistActionButton(
-    onClick: () -> Unit,
+fun BiomarkerDetailDialog(
+    modal: SelectedBiomarkerModal,
+    onDismiss: () -> Unit,
+    onLogVital: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("home_ai_assist_button"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
-        ),
-        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
+    val bio = modal.biomarker
+    val valueStr = modal.displayValue ?: bio?.let { "${it.value} ${it.unit}".trim() } ?: "--"
+    
+    val status = bio?.status ?: when (modal.name.lowercase()) {
+        "blood pressure" -> BiomarkerStatus.NORMAL
+        "blood sugar" -> BiomarkerStatus.NORMAL
+        "heart rate" -> BiomarkerStatus.NORMAL
+        "spo2" -> BiomarkerStatus.NORMAL
+        else -> BiomarkerStatus.UNKNOWN
+    }
+
+    val statusColor = when (status) {
+        BiomarkerStatus.CRITICAL_HIGH, BiomarkerStatus.CRITICAL_LOW -> MaterialTheme.colorScheme.error
+        BiomarkerStatus.HIGH, BiomarkerStatus.LOW, BiomarkerStatus.QUALITATIVE_ABNORMAL -> Color(0xFFF59E0B)
+        BiomarkerStatus.NORMAL -> Color(0xFF10B981)
+        BiomarkerStatus.UNKNOWN -> MaterialTheme.colorScheme.outline
+    }
+
+    val statusLabel = when (status) {
+        BiomarkerStatus.CRITICAL_HIGH -> "Critical High ▲"
+        BiomarkerStatus.CRITICAL_LOW -> "Critical Low ▼"
+        BiomarkerStatus.HIGH -> "High / Elevated ▲"
+        BiomarkerStatus.LOW -> "Low ▼"
+        BiomarkerStatus.QUALITATIVE_ABNORMAL -> "Abnormal ⚠"
+        BiomarkerStatus.NORMAL -> "Normal / Optimal ✓"
+        BiomarkerStatus.UNKNOWN -> "Reported"
+    }
+
+    val referenceRange = bio?.referenceRange?.ifBlank { null } ?: when (modal.name.lowercase()) {
+        "blood pressure", "bp" -> "< 120/80 mmHg (Normal adult)"
+        "blood sugar", "glucose", "fbs" -> "70 – 99 mg/dL (Fasting), < 140 mg/dL (Post-Meal)"
+        "heart rate", "pulse" -> "60 – 100 BPM (Resting)"
+        "spo2", "oxygen" -> "95% – 100% (Arterial saturation)"
+        else -> "Standard physiological clinical reference range"
+    }
+
+    val organSystemName = bio?.organSystem?.displayName ?: when (modal.name.lowercase()) {
+        "blood pressure", "bp", "heart rate", "pulse" -> "Cardiovascular System"
+        "blood sugar", "glucose", "fbs" -> "Endocrine & Metabolic"
+        "spo2", "oxygen" -> "Respiratory System"
+        else -> "General Health Telemetry"
+    }
+
+    val clinicalMeaning = when {
+        modal.name.contains("Pressure", ignoreCase = true) || modal.name.equals("BP", ignoreCase = true) ->
+            "Blood pressure measures arterial tension during cardiac contraction (systolic) and resting diastole. Keeping BP within target limits protects against cardiovascular events and preserves renal microvasculature."
+        modal.name.contains("Sugar", ignoreCase = true) || modal.name.contains("Glucose", ignoreCase = true) || modal.name.contains("FBS", ignoreCase = true) ->
+            "Blood glucose indicates carbohydrate metabolism and insulin sensitivity. Well-controlled levels prevent microvascular damage to eyes, kidneys, and peripheral nerves."
+        modal.name.contains("Heart", ignoreCase = true) || modal.name.contains("Pulse", ignoreCase = true) ->
+            "Resting pulse rate evaluates cardiac rhythm stability, autonomic tone, and cardiovascular fitness. Regular aerobic exercise supports lower resting heart rates."
+        modal.name.contains("SpO2", ignoreCase = true) || modal.name.contains("Oxygen", ignoreCase = true) ->
+            "SpO2 measures the percentage of hemoglobin carrying oxygen. Maintaining readings above 95% ensures organs and skeletal muscles receive optimal oxygen delivery."
+        modal.name.contains("Creatinine", ignoreCase = true) ->
+            "Serum creatinine is a waste product filtered by the kidneys. Normal values confirm healthy glomerular filtration rate (eGFR)."
+        modal.name.contains("HbA1c", ignoreCase = true) ->
+            "HbA1c measures the percentage of glycated hemoglobin, providing a 3-month retrospective index of glycemic control without daily fluctuation bias."
+        modal.name.contains("Hemoglobin", ignoreCase = true) || modal.name.equals("Hb", ignoreCase = true) ->
+            "Hemoglobin is the vital protein in red blood cells that transports oxygen from your lungs throughout the body. Healthy levels prevent fatigue and anemia."
+        else ->
+            "This biomarker was extracted from your diagnostic laboratory reports. Tracking it over time provides your healthcare provider with actionable clinical trajectory data."
+    }
+
+    val isLoggableVital = modal.name.lowercase() in listOf("blood pressure", "bp", "weight")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = modifier.testTag("biomarker_detail_dialog"),
+        icon = {
+            Surface(
+                shape = CircleShape,
+                color = statusColor.copy(alpha = 0.15f),
+                modifier = Modifier.size(48.dp)
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(42.dp)
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = when {
+                            modal.name.contains("Pressure", ignoreCase = true) || modal.name.equals("BP", ignoreCase = true) -> Icons.Default.Speed
+                            modal.name.contains("Sugar", ignoreCase = true) || modal.name.contains("Glucose", ignoreCase = true) -> Icons.Default.Science
+                            modal.name.contains("Heart", ignoreCase = true) || modal.name.contains("Pulse", ignoreCase = true) -> Icons.Default.Favorite
+                            modal.name.contains("SpO2", ignoreCase = true) || modal.name.contains("Oxygen", ignoreCase = true) -> Icons.Default.Air
+                            else -> Icons.Default.HealthAndSafety
+                        },
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+        },
+        title = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = modal.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = organSystemName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Primary Value & Status Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "AI Assist",
-                            tint = MaterialTheme.colorScheme.onTertiary,
-                            modifier = Modifier.size(22.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "CURRENT MEASUREMENT",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = valueStr,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = statusColor.copy(alpha = 0.18f),
+                            border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = statusLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = statusColor,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Reference Range Card
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Reference Range",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = referenceRange,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                Column {
+                // Clinical Meaning & Plain Language Guide
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "AI Health Assistant",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "Clinical Significance",
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Clinical summaries, safety audit & doctor consult brief",
+                        text = clinicalMeaning,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            FilledTonalButton(
-                onClick = onClick,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary
-                ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.testTag("home_ai_assist_open_btn")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Open", fontWeight = FontWeight.Bold)
+        },
+        confirmButton = {
+            if (isLoggableVital) {
+                Button(
+                    onClick = onLogVital,
+                    modifier = Modifier.testTag("biomarker_log_reading_btn")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+ Log Vital")
+                }
+            } else {
+                Button(onClick = onDismiss) {
+                    Text("OK")
+                }
+            }
+        },
+        dismissButton = {
+            if (isLoggableVital) {
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
             }
         }
-    }
+    )
 }
 
 @Composable

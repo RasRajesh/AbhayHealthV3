@@ -4,6 +4,7 @@
 
     <!-- Navigation Labels -->
     <string name="nav_home">హోమ్</string>
+    <string name="nav_ai_assistant">AI అసిస్టెంట్</string>
     <string name="nav_records">రికార్డులు</string>
     <string name="nav_trends">ట్రెండ్స్</string>
     <string name="nav_medicines">మందులు</string>

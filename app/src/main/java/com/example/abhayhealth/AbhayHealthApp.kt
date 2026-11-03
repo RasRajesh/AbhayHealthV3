@@ -22,6 +22,7 @@ import com.example.abhayhealth.data.repository.PatientProfileRepositoryImpl
 import com.example.abhayhealth.data.repository.UserPreferencesRepositoryImpl
 import com.example.abhayhealth.domain.usecase.CompleteOnboardingUseCase
 import com.example.abhayhealth.domain.usecase.GetStartupDestinationUseCase
+import com.example.abhayhealth.feature.assistant.AiAssistantViewModel
 import com.example.abhayhealth.feature.auth.AuthViewModel
 import com.example.abhayhealth.feature.home.HomeViewModel
 import com.example.abhayhealth.feature.me.MeViewModel
@@ -122,6 +123,17 @@ fun AbhayHealthApp(
             vitalReadingRepository = vitalReadingRepository
         )
     }
+    val aiAssistantViewModel = remember(context, userPreferencesRepository, authRepository, medicalRecordRepository, medicalRecordDatabase, patientProfileRepository, vitalReadingRepository) {
+        AiAssistantViewModel(
+            context = context.applicationContext,
+            userPreferencesRepository = userPreferencesRepository,
+            authRepository = authRepository,
+            medicalRecordRepository = medicalRecordRepository,
+            medicationDao = medicalRecordDatabase.medicationDao(),
+            patientProfileRepository = patientProfileRepository,
+            vitalReadingRepository = vitalReadingRepository
+        )
+    }
 
     val appLanguage by userPreferencesRepository.appLanguage.collectAsState(initial = "English")
     val isTelugu = appLanguage.contains("Telugu", ignoreCase = true) || appLanguage.startsWith("te", ignoreCase = true)
@@ -168,7 +180,8 @@ fun AbhayHealthApp(
                     recordsViewModel = recordsViewModel,
                     trendsViewModel = trendsViewModel,
                     medicinesViewModel = medicinesViewModel,
-                    meViewModel = meViewModel
+                    meViewModel = meViewModel,
+                    aiAssistantViewModel = aiAssistantViewModel
                 )
             }
         }

@@ -36,6 +36,8 @@ import com.example.abhayhealth.feature.splash.SplashScreen
 import com.example.abhayhealth.feature.splash.SplashViewModel
 import com.example.abhayhealth.feature.trends.TrendsViewModel
 
+import com.example.abhayhealth.feature.assistant.AiAssistantViewModel
+
 @Composable
 fun AbhayHealthNavHost(
     splashViewModel: SplashViewModel,
@@ -49,6 +51,7 @@ fun AbhayHealthNavHost(
     medicinesViewModel: MedicinesViewModel,
     meViewModel: MeViewModel,
     modifier: Modifier = Modifier,
+    aiAssistantViewModel: AiAssistantViewModel? = null,
     navController: NavHostController = rememberNavController()
 ) {
     val authState by authViewModel.authState.collectAsState()
@@ -189,6 +192,7 @@ fun AbhayHealthNavHost(
                 trendsViewModel = trendsViewModel,
                 medicinesViewModel = medicinesViewModel,
                 meViewModel = meViewModel,
+                aiAssistantViewModel = aiAssistantViewModel,
                 onEditProfileClick = {
                     profileViewModel.loadProfileForCurrentUser()
                     navController.navigate(NavRoutes.PROFILE_EDIT)

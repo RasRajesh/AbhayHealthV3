@@ -22,18 +22,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -82,7 +86,8 @@ fun MedicalInfographicCard(
     heartRate: String = "72 BPM",
     spO2: String = "98%",
     extractedBiomarkers: List<ParsedMedicalResult> = emptyList(),
-    onMetricClick: (String) -> Unit = {},
+    onMetricClick: (String, ParsedMedicalResult?) -> Unit = { _, _ -> },
+    onLogVitalClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
 
@@ -160,21 +165,41 @@ fun MedicalInfographicCard(
                     )
                 }
 
-                Surface(
-                    color = Color(0xFF1E293B),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, neonBlue.copy(alpha = 0.4f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = stringResource(id = R.string.home_infographic_badge),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
+                    FilledTonalButton(
+                        onClick = onLogVitalClick,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = neonBlue.copy(alpha = 0.22f),
+                            contentColor = neonBlue
                         ),
-                        color = neonBlue,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("+ Log Vital", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Surface(
+                        color = Color(0xFF1E293B),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, neonBlue.copy(alpha = 0.4f))
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.home_infographic_badge),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp
+                            ),
+                            color = neonBlue,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
                 }
             }
 
@@ -272,7 +297,7 @@ fun MedicalInfographicCard(
                     status = "120/80 Optimal",
                     accentColor = Color(0xFF38BDF8),
                     icon = Icons.Default.Speed,
-                    onClick = { onMetricClick("Blood Pressure") },
+                    onClick = { onMetricClick("Blood Pressure", null) },
                     modifier = Modifier.weight(1f)
                 )
                 MetricCalloutBox(
@@ -281,7 +306,7 @@ fun MedicalInfographicCard(
                     status = "95 mg/dL Fasting",
                     accentColor = Color(0xFF34D399),
                     icon = Icons.Default.Science,
-                    onClick = { onMetricClick("Blood Sugar") },
+                    onClick = { onMetricClick("Blood Sugar", null) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -298,7 +323,7 @@ fun MedicalInfographicCard(
                     status = "72 BPM Resting",
                     accentColor = Color(0xFFF43F5E),
                     icon = Icons.Default.MonitorHeart,
-                    onClick = { onMetricClick("Heart Rate") },
+                    onClick = { onMetricClick("Heart Rate", null) },
                     modifier = Modifier.weight(1f)
                 )
                 MetricCalloutBox(
@@ -307,7 +332,7 @@ fun MedicalInfographicCard(
                     status = "98% Arterial",
                     accentColor = Color(0xFF60A5FA),
                     icon = Icons.Default.Air,
-                    onClick = { onMetricClick("SpO2") },
+                    onClick = { onMetricClick("SpO2", null) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -415,7 +440,7 @@ fun MedicalInfographicCard(
                                 1.dp,
                                 if (bio.isOutOfRange) statusColor.copy(alpha = 0.7f) else neonBlue.copy(alpha = 0.35f)
                             ),
-                            modifier = Modifier.clickable { onMetricClick(bio.testName) }
+                            modifier = Modifier.clickable { onMetricClick(bio.testName, bio) }
                         ) {
                             Column(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)

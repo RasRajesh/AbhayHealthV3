@@ -27,6 +27,8 @@ import com.example.abhayhealth.feature.me.MeScreen
 import com.example.abhayhealth.feature.me.MeViewModel
 import com.example.abhayhealth.feature.medicines.MedicinesScreen
 import com.example.abhayhealth.feature.medicines.MedicinesViewModel
+import com.example.abhayhealth.feature.assistant.AiAssistantScreen
+import com.example.abhayhealth.feature.assistant.AiAssistantViewModel
 import com.example.abhayhealth.feature.records.RecordsScreen
 import com.example.abhayhealth.feature.records.RecordsViewModel
 import com.example.abhayhealth.feature.trends.TrendsScreen
@@ -43,6 +45,7 @@ fun MainScreen(
     onRecordReviewClick: (Long) -> Unit,
     onSignOutClick: () -> Unit,
     modifier: Modifier = Modifier,
+    aiAssistantViewModel: AiAssistantViewModel? = null,
     navController: NavHostController = rememberNavController()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -107,6 +110,11 @@ fun MainScreen(
                         }
                     }
                 )
+            }
+            composable(NavRoutes.MainTab.AI_ASSISTANT) {
+                if (aiAssistantViewModel != null) {
+                    AiAssistantScreen(viewModel = aiAssistantViewModel)
+                }
             }
             composable(NavRoutes.MainTab.RECORDS) {
                 RecordsScreen(

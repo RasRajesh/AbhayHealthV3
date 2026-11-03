@@ -4,6 +4,7 @@
 
     <!-- Navigation Labels -->
     <string name="nav_home">Home</string>
+    <string name="nav_ai_assistant">AI Assistant</string>
     <string name="nav_records">Records</string>
     <string name="nav_trends">Trends</string>
     <string name="nav_medicines">Medicines</string>

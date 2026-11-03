@@ -19,6 +19,7 @@ object NavRoutes {
     // Bottom Navigation destinations inside Main Shell
     object MainTab {
         const val HOME = "home_tab"
+        const val AI_ASSISTANT = "ai_assistant_tab"
         const val RECORDS = "records_tab"
         const val TRENDS = "trends_tab"
         const val MEDICINES = "medicines_tab"
