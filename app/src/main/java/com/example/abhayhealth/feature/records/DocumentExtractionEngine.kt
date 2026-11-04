@@ -11,6 +11,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 sealed interface ExtractionResult {
@@ -25,7 +26,7 @@ sealed interface ExtractionResult {
 
 object DocumentExtractionEngine {
 
-    const val MAX_PDF_PAGES = 15
+    const val MAX_PDF_PAGES = 4
 
     suspend fun extractText(record: MedicalRecord): ExtractionResult = withContext(Dispatchers.IO) {
         val path = record.localFilePath
@@ -46,9 +47,9 @@ object DocumentExtractionEngine {
             } else {
                 extractFromImage(file)
             }
-        } catch (e: Exception) {
-            SecurityAudit.logError("DocumentExtractionEngine", "Failed during document extraction", e)
-            ExtractionResult.Error(e.localizedMessage ?: "Failed to extract text from document.")
+        } catch (t: Throwable) {
+            SecurityAudit.logError("DocumentExtractionEngine", "Failed during document extraction", t)
+            ExtractionResult.Error(t.localizedMessage ?: "Failed to extract text from document.")
         }
     }
 
@@ -74,20 +75,21 @@ object DocumentExtractionEngine {
             val fullTextBuilder = StringBuilder()
 
             for (i in 0 until pagesToProcess) {
-                val page = renderer.openPage(i)
+                var page: PdfRenderer.Page? = null
                 var bitmap: Bitmap? = null
 
                 try {
-                    val maxDimension = 1920
+                    page = renderer.openPage(i)
+                    val maxDimension = 1200
                     val maxDim = maxOf(page.width, page.height)
-                    val scale = if (maxDim > 0) minOf(2.0f, maxDimension.toFloat() / maxDim) else 1.5f
+                    val scale = if (maxDim > 0) minOf(1.5f, maxDimension.toFloat() / maxDim) else 1.0f
                     val width = (page.width * scale).toInt().coerceAtLeast(1)
                     val height = (page.height * scale).toInt().coerceAtLeast(1)
 
                     val renderedBitmap = Bitmap.createBitmap(
                         width,
                         height,
-                        Bitmap.Config.ARGB_8888
+                        Bitmap.Config.RGB_565
                     )
                     bitmap = renderedBitmap
 
@@ -98,14 +100,32 @@ object DocumentExtractionEngine {
                         PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
                     )
 
-                    val inputImage = InputImage.fromBitmap(renderedBitmap, 0)
-                    val visionText = recognizer.process(inputImage).await()
+                    // Preprocess rendered PDF page with grayscale & contrast enhancement for faint/scanned documents
+                    val ocrBitmap = try {
+                        DocumentImagePreprocessor.preprocessForOcr(renderedBitmap)
+                    } catch (_: Throwable) {
+                        renderedBitmap
+                    }
 
-                    if (visionText.text.isNotBlank()) {
-                        if (fullTextBuilder.isNotEmpty()) {
-                            fullTextBuilder.append("\n--- Page ${i + 1} ---\n")
+                    try {
+                        val inputImage = InputImage.fromBitmap(ocrBitmap, 0)
+                        val visionText = withTimeoutOrNull(7000L) {
+                            recognizer.process(inputImage).await()
                         }
-                        fullTextBuilder.append(visionText.text)
+
+                        if (visionText != null && visionText.text.isNotBlank()) {
+                            if (fullTextBuilder.isNotEmpty()) {
+                                fullTextBuilder.append("\n--- Page ${i + 1} ---\n")
+                            }
+                            fullTextBuilder.append(visionText.text)
+                        }
+                    } finally {
+                        if (ocrBitmap !== renderedBitmap && !ocrBitmap.isRecycled) {
+                            try {
+                                ocrBitmap.recycle()
+                            } catch (_: Exception) {
+                            }
+                        }
                     }
                 } catch (t: Throwable) {
                     SecurityAudit.logError("DocumentExtractionEngine", "Skipped rendering PDF page $i due to error", t)
@@ -115,13 +135,11 @@ object DocumentExtractionEngine {
                             if (!it.isRecycled) it.recycle()
                         }
                     } catch (_: Exception) {
-                        // Continue closing the PDF page even if recycling fails.
                     }
 
                     try {
-                        page.close()
+                        page?.close()
                     } catch (_: Exception) {
-                        // Continue releasing remaining resources.
                     }
                 }
             }
@@ -170,7 +188,7 @@ object DocumentExtractionEngine {
             }
 
             var sampleSize = 1
-            val maxDimension = 2048
+            val maxDimension = 1280
 
             while (
                 width / sampleSize > maxDimension ||
@@ -181,10 +199,10 @@ object DocumentExtractionEngine {
 
             val decodeOptions = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inPreferredConfig = Bitmap.Config.RGB_565
             }
 
-            val bitmap = BitmapFactory.decodeFile(
+            val rawBitmap = BitmapFactory.decodeFile(
                 file.absolutePath,
                 decodeOptions
             ) ?: return ExtractionResult.Error("Failed to decode image file.")
@@ -202,10 +220,33 @@ object DocumentExtractionEngine {
                 else -> 0
             }
 
+            var preprocessedBitmap: Bitmap? = null
             try {
-                val inputImage = InputImage.fromBitmap(bitmap, rotationDegrees)
-                val visionText = recognizer.process(inputImage).await()
-                val text = visionText.text.trim()
+                // Apply grayscale desaturation and contrast enhancement to improve OCR recognition on low-quality/faint photos
+                preprocessedBitmap = DocumentImagePreprocessor.preprocessForOcr(rawBitmap)
+
+                val inputImage = InputImage.fromBitmap(preprocessedBitmap, rotationDegrees)
+                val visionText = withTimeoutOrNull(7000L) {
+                    recognizer.process(inputImage).await()
+                }
+                var text = visionText?.text?.trim() ?: ""
+
+                // Resilient fallback: If preprocessing produced little or no text (< 15 chars),
+                // test the original raw bitmap in case the document had unusual color inversion
+                if (text.length < 15 && !rawBitmap.isRecycled) {
+                    try {
+                        val rawInput = InputImage.fromBitmap(rawBitmap, rotationDegrees)
+                        val rawVision = withTimeoutOrNull(4000L) {
+                            recognizer.process(rawInput).await()
+                        }
+                        val fallbackText = rawVision?.text?.trim() ?: ""
+                        if (fallbackText.length > text.length) {
+                            text = fallbackText
+                        }
+                    } catch (t: Throwable) {
+                        SecurityAudit.logError("DocumentExtractionEngine", "Raw fallback OCR attempt skipped", t)
+                    }
+                }
 
                 ExtractionResult.Success(
                     rawText = text.ifBlank { "Image scanned successfully. Ready for clinical review and manual field entries." },
@@ -214,9 +255,14 @@ object DocumentExtractionEngine {
                 )
             } finally {
                 try {
-                    if (!bitmap.isRecycled) bitmap.recycle()
+                    preprocessedBitmap?.let {
+                        if (!it.isRecycled) it.recycle()
+                    }
                 } catch (_: Exception) {
-                    // Bitmap cleanup must not prevent recognizer cleanup.
+                }
+                try {
+                    if (!rawBitmap.isRecycled) rawBitmap.recycle()
+                } catch (_: Exception) {
                 }
             }
         } finally {
