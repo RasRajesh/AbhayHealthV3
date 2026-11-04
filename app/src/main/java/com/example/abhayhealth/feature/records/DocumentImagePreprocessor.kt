@@ -76,18 +76,23 @@ object DocumentImagePreprocessor {
         contrast: Float = DEFAULT_CONTRAST,
         brightnessBoost: Float = DEFAULT_BRIGHTNESS_BOOST
     ): Bitmap {
-        val width = source.width.coerceAtLeast(1)
-        val height = source.height.coerceAtLeast(1)
+        return try {
+            val width = source.width.coerceAtLeast(1)
+            val height = source.height.coerceAtLeast(1)
 
-        val preprocessed = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(preprocessed)
+            val preprocessed = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(preprocessed)
 
-        val colorMatrix = createOcrColorMatrix(contrast, brightnessBoost)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-            colorFilter = ColorMatrixColorFilter(colorMatrix)
+            val colorMatrix = createOcrColorMatrix(contrast, brightnessBoost)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+                colorFilter = ColorMatrixColorFilter(colorMatrix)
+            }
+
+            canvas.drawBitmap(source, 0f, 0f, paint)
+            preprocessed
+        } catch (_: Throwable) {
+            // Graceful fallback to raw source bitmap on memory pressure
+            source
         }
-
-        canvas.drawBitmap(source, 0f, 0f, paint)
-        return preprocessed
     }
 }
