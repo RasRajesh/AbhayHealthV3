@@ -26,7 +26,7 @@ sealed interface ExtractionResult {
 
 object DocumentExtractionEngine {
 
-    const val MAX_PDF_PAGES = 4
+    const val MAX_PDF_PAGES = 10
 
     suspend fun extractText(record: MedicalRecord): ExtractionResult = withContext(Dispatchers.IO) {
         val path = record.localFilePath
@@ -80,9 +80,9 @@ object DocumentExtractionEngine {
 
                 try {
                     page = renderer.openPage(i)
-                    val maxDimension = 1200
+                    val maxDimension = 1600
                     val maxDim = maxOf(page.width, page.height)
-                    val scale = if (maxDim > 0) minOf(1.5f, maxDimension.toFloat() / maxDim) else 1.0f
+                    val scale = if (maxDim > 0) (maxDimension.toFloat() / maxDim).coerceIn(1.5f, 2.2f) else 1.8f
                     val width = (page.width * scale).toInt().coerceAtLeast(1)
                     val height = (page.height * scale).toInt().coerceAtLeast(1)
 
@@ -92,6 +92,9 @@ object DocumentExtractionEngine {
                         Bitmap.Config.RGB_565
                     )
                     bitmap = renderedBitmap
+                    // CRITICAL: Fill with pure white before rendering. PdfRenderer does not clear background,
+                    // so transparent PDF pixels remain 0x0000 (pitch black in RGB_565), rendering black text invisible!
+                    renderedBitmap.eraseColor(android.graphics.Color.WHITE)
 
                     page.render(
                         renderedBitmap,
@@ -100,32 +103,16 @@ object DocumentExtractionEngine {
                         PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
                     )
 
-                    // Preprocess rendered PDF page with grayscale & contrast enhancement for faint/scanned documents
-                    val ocrBitmap = try {
-                        DocumentImagePreprocessor.preprocessForOcr(renderedBitmap)
-                    } catch (_: Throwable) {
-                        renderedBitmap
+                    val inputImage = InputImage.fromBitmap(renderedBitmap, 0)
+                    val visionText = withTimeoutOrNull(10000L) {
+                        recognizer.process(inputImage).await()
                     }
 
-                    try {
-                        val inputImage = InputImage.fromBitmap(ocrBitmap, 0)
-                        val visionText = withTimeoutOrNull(7000L) {
-                            recognizer.process(inputImage).await()
+                    if (visionText != null && visionText.text.isNotBlank()) {
+                        if (fullTextBuilder.isNotEmpty()) {
+                            fullTextBuilder.append("\n--- Page ${i + 1} ---\n")
                         }
-
-                        if (visionText != null && visionText.text.isNotBlank()) {
-                            if (fullTextBuilder.isNotEmpty()) {
-                                fullTextBuilder.append("\n--- Page ${i + 1} ---\n")
-                            }
-                            fullTextBuilder.append(visionText.text)
-                        }
-                    } finally {
-                        if (ocrBitmap !== renderedBitmap && !ocrBitmap.isRecycled) {
-                            try {
-                                ocrBitmap.recycle()
-                            } catch (_: Exception) {
-                            }
-                        }
+                        fullTextBuilder.append(visionText.text)
                     }
                 } catch (t: Throwable) {
                     SecurityAudit.logError("DocumentExtractionEngine", "Skipped rendering PDF page $i due to error", t)
