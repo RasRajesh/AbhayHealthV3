@@ -66,8 +66,8 @@ object DocumentImagePreprocessor {
 
     /**
      * Pre-processes [source] bitmap by applying grayscale conversion and contrast enhancement.
-     * Produces a new [Bitmap] configured with [Bitmap.Config.RGB_565] for optimal OCR accuracy
-     * and minimal memory footprint.
+     * Produces a new [Bitmap] configured with [Bitmap.Config.ARGB_8888] for optimal OCR accuracy
+     * and full compatibility with ML Kit vision models.
      *
      * The caller is responsible for recycling the returned bitmap when processing completes.
      */
@@ -79,7 +79,7 @@ object DocumentImagePreprocessor {
         val width = source.width.coerceAtLeast(1)
         val height = source.height.coerceAtLeast(1)
 
-        val preprocessed = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+        val preprocessed = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(preprocessed)
 
         val colorMatrix = createOcrColorMatrix(contrast, brightnessBoost)

@@ -157,9 +157,9 @@ object MedicalFieldParser {
         TestDefinition("Urine Protein", listOf("PROTEIN", "Urine Protein", "Protein"), "", "Nil"),
         TestDefinition("Urine Nitrite", listOf("NITRITE", "Nitrite", "Nitrite (Urine)"), "", "Negative"),
         TestDefinition("Urine Ketone", listOf("KETONE", "Ketone Bodies", "Ketones"), "", "Negative"),
-        TestDefinition("Urine Bilirubin", listOf("BILIRUBIN (URINE)", "BILIRUBIN - URINE", "Bilirubin (Urine)"), "", "Negative"),
+        TestDefinition("Urine Bilirubin", listOf("BILIRUBIN (URINE)", "BILIRUBIN - URINE", "Bilirubin (Urine)", "BILIRUBIN"), "", "Negative"),
         TestDefinition("Urobilinogen", listOf("UROBILINOGEN", "Urobilinogen"), "", "Normal"),
-        TestDefinition("Urine Blood", listOf("Blood (Urine)", "Blood - Urine", "Urine Blood", "Occult Blood"), "", "Negative"),
+        TestDefinition("Urine Blood", listOf("Blood (Urine)", "Blood - Urine", "Urine Blood", "Occult Blood", "BLOOD"), "", "Negative"),
 
         // Inflammatory & Clinical Markers
         TestDefinition("C-Reactive Protein", listOf("C-Reactive Protein", "CRP", "hs-CRP"), "mg/L", "< 5.0 mg/L"),
@@ -483,6 +483,13 @@ object MedicalFieldParser {
     private fun matchesAlias(line: String, alias: String): Boolean {
         val cleanLine = line.replace(Regex("""\s+"""), " ").trim()
         val cleanAlias = alias.replace(Regex("""\s+"""), " ").trim()
+
+        // Short ambiguous single-word test names (e.g. BLOOD in Urine analysis vs EDTA WHOLE BLOOD in CBC)
+        // require exact line match so they only trigger on the actual test header line
+        if (cleanAlias.equals("BLOOD", ignoreCase = true) || cleanAlias.equals("BILIRUBIN", ignoreCase = true)) {
+            return cleanLine.equals(cleanAlias, ignoreCase = true)
+        }
+
         if (cleanLine.contains(cleanAlias, ignoreCase = true)) return true
 
         // Match stripped non-alphanumeric characters (handling parentheses, hyphens, slashes)
@@ -565,9 +572,9 @@ object MedicalFieldParser {
         val clean = text.trim()
         if (clean.isBlank()) return null
 
-        // 1. Check for qualitative / semi-quantitative values (Nil, Negative, Trace, Normal, Clear, etc.)
+        // 1. Check for qualitative / semi-quantitative values (Nil, Negative, Positive, Trace, Normal, Clear, etc.)
         val qualitativeRegex = Regex(
-            """^(?:Result\s*[:=-]?\s*)?(Nil|Negative|Trace|Normal|Clear|Pale\s+Yellow|Yellow|Present|Absent|Reactive|Non-Reactive)\b(?:\s+(.*))?""",
+            """^(?:Result\s*[:=-]?\s*)?(Positive|Negative|Nil|Trace|Normal|Clear|Pale\s+Yellow|Yellow|Present|Absent|Reactive|Non-Reactive)\b(?:\s+(.*))?""",
             RegexOption.IGNORE_CASE
         )
         val qMatch = qualitativeRegex.find(clean)

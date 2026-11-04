@@ -74,6 +74,8 @@ object DocumentExtractionEngine {
             val pagesToProcess = minOf(pageCount, MAX_PDF_PAGES)
             val fullTextBuilder = StringBuilder()
 
+            var lastError: Throwable? = null
+
             for (i in 0 until pagesToProcess) {
                 var page: PdfRenderer.Page? = null
                 var bitmap: Bitmap? = null
@@ -86,14 +88,15 @@ object DocumentExtractionEngine {
                     val width = (page.width * scale).toInt().coerceAtLeast(1)
                     val height = (page.height * scale).toInt().coerceAtLeast(1)
 
+                    // ML Kit InputImage.fromBitmap requires ARGB_8888. RGB_565 throws IllegalArgumentException on device!
                     val renderedBitmap = Bitmap.createBitmap(
                         width,
                         height,
-                        Bitmap.Config.RGB_565
+                        Bitmap.Config.ARGB_8888
                     )
                     bitmap = renderedBitmap
                     // CRITICAL: Fill with pure white before rendering. PdfRenderer does not clear background,
-                    // so transparent PDF pixels remain 0x0000 (pitch black in RGB_565), rendering black text invisible!
+                    // so transparent PDF pixels remain black without eraseColor!
                     renderedBitmap.eraseColor(android.graphics.Color.WHITE)
 
                     page.render(
@@ -115,6 +118,7 @@ object DocumentExtractionEngine {
                         fullTextBuilder.append(visionText.text)
                     }
                 } catch (t: Throwable) {
+                    lastError = t
                     SecurityAudit.logError("DocumentExtractionEngine", "Skipped rendering PDF page $i due to error", t)
                 } finally {
                     try {
@@ -133,11 +137,17 @@ object DocumentExtractionEngine {
 
             val extractedText = fullTextBuilder.toString().trim()
 
-            ExtractionResult.Success(
-                rawText = extractedText.ifBlank { "PDF document processed ($pagesToProcess pages). Ready for review." },
-                pagesProcessed = pagesToProcess,
-                isPartial = pageCount > MAX_PDF_PAGES
-            )
+            if (extractedText.isBlank()) {
+                val errorMsg = lastError?.localizedMessage
+                    ?: "No readable medical text could be detected from this document ($pagesToProcess page(s) analyzed)."
+                ExtractionResult.Error(errorMsg)
+            } else {
+                ExtractionResult.Success(
+                    rawText = extractedText,
+                    pagesProcessed = pagesToProcess,
+                    isPartial = pageCount > MAX_PDF_PAGES
+                )
+            }
         } finally {
             // Close each resource independently so one failure doesn't block the others.
             try {
@@ -186,7 +196,7 @@ object DocumentExtractionEngine {
 
             val decodeOptions = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
-                inPreferredConfig = Bitmap.Config.RGB_565
+                inPreferredConfig = Bitmap.Config.ARGB_8888
             }
 
             val rawBitmap = BitmapFactory.decodeFile(
@@ -235,11 +245,15 @@ object DocumentExtractionEngine {
                     }
                 }
 
-                ExtractionResult.Success(
-                    rawText = text.ifBlank { "Image scanned successfully. Ready for clinical review and manual field entries." },
-                    pagesProcessed = 1,
-                    isPartial = false
-                )
+                if (text.isBlank()) {
+                    ExtractionResult.Error("No readable medical text recognized in this document image.")
+                } else {
+                    ExtractionResult.Success(
+                        rawText = text,
+                        pagesProcessed = 1,
+                        isPartial = false
+                    )
+                }
             } finally {
                 try {
                     preprocessedBitmap?.let {

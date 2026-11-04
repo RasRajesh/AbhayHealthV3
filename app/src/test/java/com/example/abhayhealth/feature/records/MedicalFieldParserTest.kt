@@ -759,5 +759,17 @@ class MedicalFieldParserTest {
         }
 
         assertTrue("Should extract at least 30 parameters from 8 pages", results.size >= 30)
+
+        val urineBlood = results.firstOrNull { it.testName == "Urine Blood" }
+        assertNotNull("Urine Blood result should be present", urineBlood)
+        assertEquals("Positive", urineBlood?.value)
+
+        val tsh = results.firstOrNull { it.testName == "TSH" }
+        assertNotNull("TSH result should be present", tsh)
+        assertEquals("4.520", tsh?.value)
+
+        val totalT3 = results.firstOrNull { it.testName == "Total T3" }
+        assertNotNull("Total T3 result should be present", totalT3)
+        assertEquals("108.0", totalT3?.value)
     }
 }
