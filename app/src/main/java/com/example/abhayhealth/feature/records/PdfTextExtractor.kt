@@ -192,6 +192,13 @@ object PdfTextExtractor {
                     val rawStr = streamText.substring(start, i - 1)
                     val unescaped = unescapePdfString(rawStr)
                     if (unescaped.isNotBlank()) {
+                        if (sb.isNotEmpty() && !sb.endsWith(" ") && !sb.endsWith("\n") &&
+                            !unescaped.startsWith(" ") && !unescaped.startsWith(",") &&
+                            !unescaped.startsWith(":") && !unescaped.startsWith(")") &&
+                            !unescaped.startsWith("-") && !unescaped.startsWith("/")
+                        ) {
+                            sb.append(" ")
+                        }
                         sb.append(unescaped)
                     }
                     pos = i
