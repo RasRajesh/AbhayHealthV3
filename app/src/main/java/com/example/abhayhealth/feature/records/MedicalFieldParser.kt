@@ -13,6 +13,8 @@ import java.util.UUID
 object MedicalFieldParser {
 
     private val TITLE_KEYWORDS = listOf(
+        "FINAL TEST REPORT",
+        "TEST REPORT",
         "PRESCRIPTION",
         "MEDICAL PRESCRIPTION",
         "DOCTOR'S PRESCRIPTION",
@@ -22,10 +24,14 @@ object MedicalFieldParser {
         "BIOCHEMISTRY REPORT",
         "HAEMATOLOGY REPORT",
         "BLOOD TEST REPORT",
+        "COMPLETE BLOOD COUNT",
+        "ISWARYAM-RUBY",
         "CLINICAL SUMMARY",
         "DISCHARGE SUMMARY",
         "OUTPATIENT RECORD",
-        "HEALTH CHECKUP REPORT"
+        "HEALTH CHECKUP REPORT",
+        "HEALTH CHECKUP",
+        "MASTER HEALTH CHECKUP"
     )
 
     private val DATE_PATTERNS = listOf(
@@ -46,7 +52,6 @@ object MedicalFieldParser {
         )
     )
 
-    // Extensive catalog of clinical biomarkers with aliases, default units, and reference ranges
     // Extensive catalog of clinical biomarkers with aliases, default units, and reference ranges
     data class TestDefinition(
         val canonicalName: String,
@@ -71,18 +76,20 @@ object MedicalFieldParser {
         TestDefinition("Eosinophils", listOf("Eosinophils"), "%", "1 - 6 %"),
         TestDefinition("Monocytes", listOf("Monocytes"), "%", "2 - 8 %"),
         TestDefinition("Basophils", listOf("Basophils"), "%", "0 - 1 %"),
-        TestDefinition("Immature Granulocytes", listOf("Immature Granulocyte Percentage(IG%)", "Immature Granulocytes", "IG%"), "%", "0.0 - 0.5 %"),
+        TestDefinition("Immature Granulocytes", listOf("Immature Granulocyte Percentage(IG%)", "IMMATURE GRANULOCYTE", "IMMATURE GRANULOCYTES", "Immature Granulocytes", "IG%"), "%", "0.0 - 0.5 %"),
         TestDefinition("Absolute Neutrophil Count", listOf("Absolute Neutrophil Count", "ANC"), "cells/cumm", "2,000 - 7,000 cells/cumm"),
         TestDefinition("Absolute Lymphocyte Count", listOf("Absolute Lymphocyte Count", "ALC"), "cells/cumm", "1,000 - 3,000 cells/cumm"),
         TestDefinition("Absolute Eosinophil Count", listOf("Absolute Eosinophil Count", "AEC"), "cells/cumm", "20 - 500 cells/cumm"),
         TestDefinition("Absolute Monocyte Count", listOf("Absolute Monocyte Count", "AMC"), "cells/cumm", "200 - 1,000 cells/cumm"),
-        TestDefinition("Absolute Basophil Count", listOf("Absolute Basophil Count", "ABC"), "cells/cumm", "20 - 100 cells/cumm"),
+        TestDefinition("Absolute Basophil Count", listOf("Absolute Basophils Count", "Absolute Basophil Count", "ABC"), "cells/cumm", "20 - 100 cells/cumm"),
+        TestDefinition("NRBC", listOf("NRBC(Nucleated Red Blood Cells)", "NRBC", "Nucleated Red Blood Cells"), "%", "< 0"),
+        TestDefinition("ANRBC", listOf("ANRBC(Absolute Nucleated Red Blood Cells)", "ANRBC", "Absolute Nucleated Red Blood Cells"), "cells/cumm", "< 0"),
         TestDefinition("RDW-CV", listOf("RDW-CV(Red Cell Distribution Width-CV)", "RDW-CV", "RDW - CV", "RDW > CV", "Red Cell Distribution Width"), "%", "11.6 - 14.0 %"),
         TestDefinition("RDW-SD", listOf("RDW-SD(Red Cell Distribution Width-SD)", "RDW-SD", "RDW - SD", "RDW > SD"), "fl", "39 - 46 fl"),
         TestDefinition("MPV", listOf("MPV (Mean Platelet Volume)", "MPV", "Mean Platelet Volume"), "fl", "6.5 - 12.0 fl"),
         TestDefinition("PDW", listOf("PDW(Platelet Distribution Width)", "PDW", "Platelet Distribution Width"), "%", "9 - 14 %"),
         TestDefinition("PCT (Plateletcrit)", listOf("PCT(Plateletcrit)", "Plateletcrit", "PCT"), "%", "0.19 - 0.39 %"),
-        TestDefinition("P-LCR", listOf("P-LCR(Platelet Large Cell Ratio)", "P-LCR", "Platelet Large Cell Ratio"), "%", "15.0 - 43.0 %"),
+        TestDefinition("P-LCR", listOf("PLCR(Platelet to Large Cell Ratio)", "PLCR", "P-LCR(Platelet Large Cell Ratio)", "P-LCR", "Platelet Large Cell Ratio"), "%", "15.0 - 43.0 %"),
 
         // Diabetes & Glycemic Panel
         TestDefinition("Fasting Blood Glucose", listOf("GLUCOSE FASTING (FBS)", "Glucose Fasting", "FBS", "Fasting Blood Glucose", "Fasting Glucose", "Fasting Blood Sugar"), "mg/dL", "70 - 100 mg/dL"),
@@ -99,6 +106,7 @@ object MedicalFieldParser {
         TestDefinition("Non-HDL Cholesterol", listOf("NON-HDL CHOLESTEROL", "Non-HDL Cholesterol", "NON - HDL", "NON > HDL"), "mg/dL", "< 130 mg/dL"),
         TestDefinition("Chol / HDL Ratio", listOf("CHOL / HDL RATIO", "CHOL/HDL RATIO", "Cholesterol / HDL Ratio", "Chol/HDL"), "", "3.3 - 4.4"),
         TestDefinition("LDL / HDL Ratio", listOf("LDL / HDL RATIO", "LDL/HDL RATIO", "LDL / HDL Ratio", "LDL/HDL"), "", "1.5 - 3.5"),
+        TestDefinition("TGL / HDL Ratio", listOf("TGL/HDL RATIO", "TGL / HDL RATIO", "TGL / HDL", "Triglycerides / HDL Ratio", "TGL/HDL"), "", "< 2.0"),
 
         // Kidney Function Test (KFT / RFT)
         TestDefinition("Serum Creatinine", listOf("CREATININE", "Serum Creatinine", "Creatinine", "S. Creatinine"), "mg/dL", "0.5 - 1.1 mg/dL"),
@@ -121,6 +129,7 @@ object MedicalFieldParser {
         TestDefinition("Albumin", listOf("ALBUMIN", "Albumin", "Serum Albumin"), "g/dL", "3.5 - 5.2 g/dL"),
         TestDefinition("Globulin", listOf("GLOBULIN", "Globulin"), "g/dL", "2.8 - 3.5 g/dL"),
         TestDefinition("A/G Ratio", listOf("A/G RATIO", "A/G Ratio", "Albumin Globulin Ratio", "Albumin / Globulin Ratio"), "", "1.1 - 2.5"),
+        TestDefinition("AST / ALT Ratio", listOf("AST/ALT", "AST / ALT", "AST/ALT RATIO", "SGOT/SGPT RATIO"), "", "1 - 1.19"),
         TestDefinition("Gamma GT", listOf("GAMMA GT", "Gamma GT", "GGT"), "U/L", "5 - 38 U/L"),
 
         // Thyroid Profile
@@ -133,20 +142,24 @@ object MedicalFieldParser {
         // Urine Examination
         TestDefinition("Urine Pus Cells", listOf("PUS CELLS", "Pus Cells", "Pus Cells (Urine)"), "/hpf", "0 - 5 /hpf"),
         TestDefinition("Urine Epithelial Cells", listOf("EPITHELIAL CELLS", "Epithelial Cells", "Epithelial"), "/hpf", "0 - 5 /hpf"),
-        TestDefinition("Urine RBCs", listOf("RBCES", "RBCs in Urine", "RBC (Urine)"), "/hpf", "0 - 2 /hpf"),
+        TestDefinition("Urine RBCs", listOf("RBC'S", "RBCS", "RBCES", "RBCs in Urine", "RBC (Urine)"), "/hpf", "0 - 2 /hpf"),
         TestDefinition("Urine Crystals", listOf("CRYSTALS", "Crystals in Urine", "Crystals"), "", "Nil"),
         TestDefinition("Urine Hyaline Casts", listOf("HYALINE CASTS", "Hyaline Casts"), "", "0 - 2"),
+        TestDefinition("Pathological Casts", listOf("PATHOLOGICAL CAST", "Pathological Casts"), "", "Nil"),
+        TestDefinition("Urine Bacteria", listOf("BACTERIA", "Bacteria (Urine)", "Bacteria"), "", "Nil"),
+        TestDefinition("Urine Yeast", listOf("YEAST", "Yeast Cells", "Yeast"), "", "Nil"),
+        TestDefinition("Urine Mucus", listOf("MUCUS", "Mucus Threads", "Mucus"), "", "Absent"),
         TestDefinition("Urine Colour", listOf("COLOUR", "Urine Colour", "Color"), "", "Pale Yellow"),
         TestDefinition("Urine Clarity", listOf("CLARITY", "Urine Clarity", "Appearance"), "", "Clear"),
         TestDefinition("Urine pH", listOf("CHEMICAL EXAMINATION PH", "Urine pH", "Reaction / pH", "pH"), "", "4.5 - 8.0"),
         TestDefinition("Urine Specific Gravity", listOf("SPECIFIC GRAVITY", "Specific Gravity"), "", "1.005 - 1.030"),
-        TestDefinition("Urine Glucose", listOf("GLUCOSE - URINE", "GLUCOSE > URINE", "Glucose - Urine", "Urine Glucose", "Sugar (Urine)"), "", "Nil"),
+        TestDefinition("Urine Glucose", listOf("GLUCOSE-URINE(F)", "GLUCOSE-URINE", "GLUCOSE - URINE", "GLUCOSE > URINE", "Glucose - Urine", "Urine Glucose", "Sugar (Urine)"), "", "Nil"),
         TestDefinition("Urine Protein", listOf("PROTEIN", "Urine Protein", "Protein"), "", "Nil"),
         TestDefinition("Urine Nitrite", listOf("NITRITE", "Nitrite", "Nitrite (Urine)"), "", "Negative"),
         TestDefinition("Urine Ketone", listOf("KETONE", "Ketone Bodies", "Ketones"), "", "Negative"),
-        TestDefinition("Urine Bilirubin", listOf("BILIRUBIN", "Bilirubin (Urine)"), "", "Negative"),
+        TestDefinition("Urine Bilirubin", listOf("BILIRUBIN (URINE)", "BILIRUBIN - URINE", "Bilirubin (Urine)"), "", "Negative"),
         TestDefinition("Urobilinogen", listOf("UROBILINOGEN", "Urobilinogen"), "", "Normal"),
-        TestDefinition("Urine Blood", listOf("BLOOD", "Blood (Urine)", "Occult Blood"), "", "Negative"),
+        TestDefinition("Urine Blood", listOf("Blood (Urine)", "Blood - Urine", "Urine Blood", "Occult Blood"), "", "Negative"),
 
         // Inflammatory & Clinical Markers
         TestDefinition("C-Reactive Protein", listOf("C-Reactive Protein", "CRP", "hs-CRP"), "mg/L", "< 5.0 mg/L"),
@@ -510,10 +523,15 @@ object MedicalFieldParser {
             if (candidateLine.isBlank()) continue
 
             val upper = candidateLine.uppercase()
-            // Skip method, specimen, or header rows
-            if (upper.startsWith("(") || upper.startsWith("METHOD") || upper.startsWith("SPECIMEN") ||
+            // Skip method, specimen, or header rows, pregnant ranges, and incubation times (e.g. "1 Hour")
+            if (upper.startsWith("(") || upper.startsWith("[") || upper.startsWith("METHOD") || upper.startsWith("SPECIMEN") ||
                 upper.startsWith("NOTE") || upper.startsWith("INVESTIGATION") || upper.startsWith("RESULT") ||
-                upper.startsWith("BIOLOGICAL") || upper.startsWith("REFERENCE")
+                upper.startsWith("BIOLOGICAL") || upper.startsWith("REFERENCE") || upper.startsWith("PREGNANT") ||
+                upper.startsWith("1ST TRIMESTER") || upper.startsWith("2ND TRIMESTER") || upper.startsWith("3RD TRIMESTER") ||
+                upper.startsWith("ATA GUIDANCE") || upper.startsWith("ADA GUIDELINES") || upper.startsWith("NCEP") ||
+                upper.startsWith("PRE DIABETES") || upper.startsWith("DIABETES") || upper.startsWith("A LIPID PROFILE") ||
+                upper.startsWith("BORDERLINE") || upper.startsWith("VERY HIGH") ||
+                upper.matches(Regex("""^(?:1|2|1/2|0\.5)\s*(?:HOUR|HOURS|HR|HRS)\b.*"""))
             ) {
                 continue
             }
@@ -582,6 +600,17 @@ object MedicalFieldParser {
     }
 
     private fun isAnotherTest(text: String, currentTest: TestDefinition): Boolean {
+        val upper = text.uppercase()
+        if (upper.startsWith("(") || upper.startsWith("[") ||
+            upper.contains("SPECIMEN") || upper.contains("METHOD") ||
+            upper.contains("WHOLE BLOOD") || upper.contains("PLASMA") ||
+            upper.contains("SERUM") || upper.contains("FLUORIDE") ||
+            upper.contains("AUTOMATED") || upper.contains("CALCULATED") ||
+            upper.startsWith("NOTE")
+        ) {
+            return false
+        }
+
         return TEST_CATALOG.any { other ->
             other.canonicalName != currentTest.canonicalName &&
             other.aliases.any { alias ->
