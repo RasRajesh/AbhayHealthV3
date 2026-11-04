@@ -161,115 +161,22 @@ class RecordsViewModel(
                         localFilePath = result.localFilePath,
                         mimeType = result.mimeType
                     )
-                    var savedRecordId: Long? = null
                     try {
                         val assignedId = repo.insertRecord(record)
-                        savedRecordId = assignedId
-                        val savedRecord = record.copy(id = assignedId)
-
-                        _extractionStatusMessage.value = "Extracting lab biomarkers, vitals & prescriptions..."
-
-                        // Perform automatic on-device background OCR so biomarkers immediately populate Trends and Medicines
-                        val extraction = try {
-                            DocumentExtractionEngine.extractText(savedRecord)
-                        } catch (t: Throwable) {
-                            ExtractionResult.Error(t.localizedMessage ?: "Extraction taking time.")
-                        }
-
-                        if (extraction is ExtractionResult.Success) {
-                            val raw = extraction.rawText
-                            val title = MedicalFieldParser.parseDocumentTitle(raw, savedRecord.title)
-                            val category = MedicalFieldParser.parseDocumentCategory(raw)
-                            val date = MedicalFieldParser.parseReportDate(raw) ?: ""
-                            val results = MedicalFieldParser.parseTestResults(raw)
-
-                            val parsedTimestamp = if (date.isNotBlank()) {
-                                MedicalFieldParser.parseDateToTimestamp(date) ?: savedRecord.recordDate
-                            } else {
-                                savedRecord.recordDate
-                            }
-
-                            // Update record title and category in database so the records list shows the correct category
-                            val updatedRecord = savedRecord.copy(
-                                title = title,
-                                category = category,
-                                recordDate = parsedTimestamp
-                            )
-                            repo.insertRecord(updatedRecord)
-
-                            val info = ExtractedMedicalInfo(
-                                recordId = savedRecord.id,
-                                accountUid = uid,
-                                rawText = raw,
-                                documentTitle = title,
-                                reportDate = date.ifBlank { null },
-                                structuredResultsJson = MedicalFieldParser.serializeResults(results),
-                                reviewStatus = ExtractedMedicalInfo.STATUS_UNREVIEWED,
-                                processedPages = extraction.pagesProcessed
-                            )
-                            repo.saveExtractedInfo(info)
-
-                            // Automatically extract prescription medicines & sync to MedicationDao & alarms
-                            val parsedMedicines = MedicalFieldParser.parsePrescriptionMedicines(raw, uid)
-                            val dao = medicationDao
-                            if (dao != null && parsedMedicines.isNotEmpty()) {
-                                withContext(dispatcherProvider.io) {
-                                    parsedMedicines.forEach { med ->
-                                        dao.insertOrUpdate(med)
-                                        MedicationAlarmScheduler.scheduleMedicationAlarm(
-                                            context = context,
-                                            medicationId = med.id,
-                                            name = med.name,
-                                            dosage = med.dosage,
-                                            timeSlot = med.timeSlot
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Automatically extract vitals & sync to VitalReadingRepository
-                            val vitals = MedicalFieldParser.extractVitalsFromResults(results, uid)
-                            val vRepo = vitalReadingRepository
-                            if (vRepo != null && vitals.isNotEmpty()) {
-                                withContext(dispatcherProvider.io) {
-                                    vitals.forEach { vital ->
-                                        vRepo.insertReading(vital)
-                                    }
-                                }
-                            }
-                        } else {
-                            // Even if OCR found no text or was slow, create baseline info so the user can view & edit
-                            val fallbackInfo = ExtractedMedicalInfo(
-                                recordId = savedRecord.id,
-                                accountUid = uid,
-                                rawText = (extraction as? ExtractionResult.Error)?.message ?: "Document saved. Ready for review.",
-                                documentTitle = savedRecord.title,
-                                reportDate = null,
-                                structuredResultsJson = "[]",
-                                reviewStatus = ExtractedMedicalInfo.STATUS_UNREVIEWED,
-                                processedPages = 1
-                            )
-                            repo.saveExtractedInfo(fallbackInfo)
-                        }
-
-                        _infoMessage.value = "Document imported and health data extracted successfully."
-                        onImported?.invoke(savedRecord.id)
+                        _infoMessage.value = "Document uploaded successfully. Loading fields for review..."
+                        _isImporting.value = false
+                        onImported?.invoke(assignedId)
                     } catch (t: Throwable) {
-                        if (savedRecordId == null) {
-                            DocumentImportManager.deleteFile(result.localFilePath, context)
-                            _errorMessage.value = "Failed to save record to local database."
-                        } else {
-                            // Record was saved in DB, do not abort application
-                            _infoMessage.value = "Document saved. Review parameters."
-                            onImported?.invoke(savedRecordId)
-                        }
+                        DocumentImportManager.deleteFile(result.localFilePath, context)
+                        _errorMessage.value = "Failed to save record to local database."
+                        _isImporting.value = false
                     }
                 }
                 is DocumentImportResult.Error -> {
                     _errorMessage.value = result.message
+                    _isImporting.value = false
                 }
             }
-            _isImporting.value = false
         }
     }
 

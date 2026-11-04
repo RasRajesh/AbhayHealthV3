@@ -49,6 +49,15 @@ class ExtractionReviewViewModel(
     private val _isExtracting = MutableStateFlow(false)
     val isExtracting: StateFlow<Boolean> = _isExtracting.asStateFlow()
 
+    private val _hasExtractionFailed = MutableStateFlow(false)
+    val hasExtractionFailed: StateFlow<Boolean> = _hasExtractionFailed.asStateFlow()
+
+    private val _verifiedTestIds = MutableStateFlow<Set<String>>(emptySet())
+    val verifiedTestIds: StateFlow<Set<String>> = _verifiedTestIds.asStateFlow()
+
+    private val _verifiedMedicineIds = MutableStateFlow<Set<String>>(emptySet())
+    val verifiedMedicineIds: StateFlow<Set<String>> = _verifiedMedicineIds.asStateFlow()
+
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
@@ -155,11 +164,52 @@ class ExtractionReviewViewModel(
         _showReExtractWarning.value = false
     }
 
+    fun retryExtraction() {
+        val record = _selectedRecord.value ?: return
+        runExtraction(record, force = true)
+    }
+
+    fun cancelExtraction() {
+        activeJob?.cancel()
+        _isExtracting.value = false
+        _hasExtractionFailed.value = true
+        _errorMessage.value = "Extraction cancelled. You can retry anytime or add fields manually."
+    }
+
+    fun toggleTestVerified(id: String) {
+        val current = _verifiedTestIds.value.toMutableSet()
+        if (current.contains(id)) {
+            current.remove(id)
+        } else {
+            current.add(id)
+        }
+        _verifiedTestIds.value = current
+    }
+
+    fun toggleMedicineVerified(id: String) {
+        val current = _verifiedMedicineIds.value.toMutableSet()
+        if (current.contains(id)) {
+            current.remove(id)
+        } else {
+            current.add(id)
+        }
+        _verifiedMedicineIds.value = current
+    }
+
+    fun verifyAll() {
+        val allTestIds = _parsedResults.value.map { it.id }.toSet()
+        val allMedIds = _parsedMedicines.value.map { it.id.toString() }.toSet()
+        _verifiedTestIds.value = allTestIds
+        _verifiedMedicineIds.value = allMedIds
+    }
+
     fun runExtraction(record: MedicalRecord, force: Boolean = false) {
         val uid = getCurrentUid()
 
-        viewModelScope.launch(dispatcherProvider.main) {
+        activeJob?.cancel()
+        activeJob = viewModelScope.launch(dispatcherProvider.main) {
             _isExtracting.value = true
+            _hasExtractionFailed.value = false
             _errorMessage.value = null
             _infoMessage.value = null
 
@@ -193,10 +243,19 @@ class ExtractionReviewViewModel(
                         _parsedResults.value = results
                         _parsedMedicines.value = medicines
                         _extractedInfo.value = info
-                        _infoMessage.value = "Text extracted. Review medications and vitals before saving."
+
+                        if (results.isEmpty() && medicines.isEmpty()) {
+                            _hasExtractionFailed.value = true
+                            _errorMessage.value = "No test results or medicines were detected in this document. Tap 'Retry Extraction' or add fields manually."
+                        } else {
+                            _hasExtractionFailed.value = false
+                            _infoMessage.value = "Extracted ${results.size} test parameter(s) and ${medicines.size} medicine(s). Please review and verify all fields before saving."
+                        }
                     }
 
                     is ExtractionResult.Error -> {
+                        _hasExtractionFailed.value = true
+                        _errorMessage.value = extraction.message
                         val fallbackInfo = ExtractedMedicalInfo(
                             recordId = record.id,
                             accountUid = uid,
@@ -209,13 +268,13 @@ class ExtractionReviewViewModel(
                         )
                         medicalRecordRepository.saveExtractedInfo(fallbackInfo)
                         _extractedInfo.value = fallbackInfo
-                        _infoMessage.value = "Document loaded. You can review and add clinical fields manually."
                     }
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
-            } catch (_: Throwable) {
-                _infoMessage.value = "Extraction finished. You can review or edit fields manually."
+            } catch (t: Throwable) {
+                _hasExtractionFailed.value = true
+                _errorMessage.value = "Extraction process failed: ${t.localizedMessage ?: "Unknown error"}. Tap 'Retry Extraction' or enter data manually."
             } finally {
                 _isExtracting.value = false
             }

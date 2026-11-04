@@ -11,6 +11,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 sealed interface ExtractionResult {
@@ -25,7 +26,7 @@ sealed interface ExtractionResult {
 
 object DocumentExtractionEngine {
 
-    const val MAX_PDF_PAGES = 15
+    const val MAX_PDF_PAGES = 4
 
     suspend fun extractText(record: MedicalRecord): ExtractionResult = withContext(Dispatchers.IO) {
         val path = record.localFilePath
@@ -46,9 +47,9 @@ object DocumentExtractionEngine {
             } else {
                 extractFromImage(file)
             }
-        } catch (e: Exception) {
-            SecurityAudit.logError("DocumentExtractionEngine", "Failed during document extraction", e)
-            ExtractionResult.Error(e.localizedMessage ?: "Failed to extract text from document.")
+        } catch (t: Throwable) {
+            SecurityAudit.logError("DocumentExtractionEngine", "Failed during document extraction", t)
+            ExtractionResult.Error(t.localizedMessage ?: "Failed to extract text from document.")
         }
     }
 
@@ -74,20 +75,21 @@ object DocumentExtractionEngine {
             val fullTextBuilder = StringBuilder()
 
             for (i in 0 until pagesToProcess) {
-                val page = renderer.openPage(i)
+                var page: PdfRenderer.Page? = null
                 var bitmap: Bitmap? = null
 
                 try {
-                    val maxDimension = 1920
+                    page = renderer.openPage(i)
+                    val maxDimension = 1200
                     val maxDim = maxOf(page.width, page.height)
-                    val scale = if (maxDim > 0) minOf(2.0f, maxDimension.toFloat() / maxDim) else 1.5f
+                    val scale = if (maxDim > 0) minOf(1.5f, maxDimension.toFloat() / maxDim) else 1.0f
                     val width = (page.width * scale).toInt().coerceAtLeast(1)
                     val height = (page.height * scale).toInt().coerceAtLeast(1)
 
                     val renderedBitmap = Bitmap.createBitmap(
                         width,
                         height,
-                        Bitmap.Config.ARGB_8888
+                        Bitmap.Config.RGB_565
                     )
                     bitmap = renderedBitmap
 
@@ -99,9 +101,11 @@ object DocumentExtractionEngine {
                     )
 
                     val inputImage = InputImage.fromBitmap(renderedBitmap, 0)
-                    val visionText = recognizer.process(inputImage).await()
+                    val visionText = withTimeoutOrNull(7000L) {
+                        recognizer.process(inputImage).await()
+                    }
 
-                    if (visionText.text.isNotBlank()) {
+                    if (visionText != null && visionText.text.isNotBlank()) {
                         if (fullTextBuilder.isNotEmpty()) {
                             fullTextBuilder.append("\n--- Page ${i + 1} ---\n")
                         }
@@ -115,13 +119,11 @@ object DocumentExtractionEngine {
                             if (!it.isRecycled) it.recycle()
                         }
                     } catch (_: Exception) {
-                        // Continue closing the PDF page even if recycling fails.
                     }
 
                     try {
-                        page.close()
+                        page?.close()
                     } catch (_: Exception) {
-                        // Continue releasing remaining resources.
                     }
                 }
             }
@@ -170,7 +172,7 @@ object DocumentExtractionEngine {
             }
 
             var sampleSize = 1
-            val maxDimension = 2048
+            val maxDimension = 1280
 
             while (
                 width / sampleSize > maxDimension ||
@@ -181,7 +183,7 @@ object DocumentExtractionEngine {
 
             val decodeOptions = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inPreferredConfig = Bitmap.Config.RGB_565
             }
 
             val bitmap = BitmapFactory.decodeFile(
@@ -204,8 +206,10 @@ object DocumentExtractionEngine {
 
             try {
                 val inputImage = InputImage.fromBitmap(bitmap, rotationDegrees)
-                val visionText = recognizer.process(inputImage).await()
-                val text = visionText.text.trim()
+                val visionText = withTimeoutOrNull(7000L) {
+                    recognizer.process(inputImage).await()
+                }
+                val text = visionText?.text?.trim() ?: ""
 
                 ExtractionResult.Success(
                     rawText = text.ifBlank { "Image scanned successfully. Ready for clinical review and manual field entries." },
