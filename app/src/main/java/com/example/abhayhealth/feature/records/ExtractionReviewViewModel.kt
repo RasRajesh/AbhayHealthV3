@@ -128,10 +128,21 @@ class ExtractionReviewViewModel(
             _extractedInfo.value = info
 
             if (info != null) {
-                _documentTitle.value = info.documentTitle
-                _reportDate.value = info.reportDate ?: ""
-                _parsedResults.value = MedicalFieldParser.deserializeResults(info.structuredResultsJson)
-                _parsedMedicines.value = MedicalFieldParser.parsePrescriptionMedicines(info.rawText, uid)
+                val deserialized = MedicalFieldParser.deserializeResults(info.structuredResultsJson)
+                val meds = MedicalFieldParser.parsePrescriptionMedicines(info.rawText, uid)
+
+                // If user has already reviewed the record or if it has valid extracted items, load them
+                if (info.reviewStatus != ExtractedMedicalInfo.STATUS_UNREVIEWED || deserialized.isNotEmpty() || meds.isNotEmpty()) {
+                    _documentTitle.value = info.documentTitle
+                    _reportDate.value = info.reportDate ?: ""
+                    _parsedResults.value = deserialized
+                    _parsedMedicines.value = meds
+                } else {
+                    // Stale empty extraction from a previous run (e.g. before bitmap config fix):
+                    // Automatically re-extract so user immediately gets recognized fields!
+                    _documentTitle.value = info.documentTitle.ifBlank { record.title }
+                    runExtraction(record, force = true)
+                }
             } else {
                 _documentTitle.value = record.title
                 runExtraction(record, force = false)

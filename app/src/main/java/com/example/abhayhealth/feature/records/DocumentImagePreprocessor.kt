@@ -66,8 +66,8 @@ object DocumentImagePreprocessor {
 
     /**
      * Pre-processes [source] bitmap by applying grayscale conversion and contrast enhancement.
-     * Produces a new [Bitmap] configured with [Bitmap.Config.RGB_565] for optimal OCR accuracy
-     * and minimal memory footprint.
+     * Produces a new [Bitmap] configured with [Bitmap.Config.ARGB_8888] for optimal OCR accuracy
+     * and full compatibility with ML Kit vision models.
      *
      * The caller is responsible for recycling the returned bitmap when processing completes.
      */
@@ -76,18 +76,23 @@ object DocumentImagePreprocessor {
         contrast: Float = DEFAULT_CONTRAST,
         brightnessBoost: Float = DEFAULT_BRIGHTNESS_BOOST
     ): Bitmap {
-        val width = source.width.coerceAtLeast(1)
-        val height = source.height.coerceAtLeast(1)
+        return try {
+            val width = source.width.coerceAtLeast(1)
+            val height = source.height.coerceAtLeast(1)
 
-        val preprocessed = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-        val canvas = Canvas(preprocessed)
+            val preprocessed = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(preprocessed)
 
-        val colorMatrix = createOcrColorMatrix(contrast, brightnessBoost)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-            colorFilter = ColorMatrixColorFilter(colorMatrix)
+            val colorMatrix = createOcrColorMatrix(contrast, brightnessBoost)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+                colorFilter = ColorMatrixColorFilter(colorMatrix)
+            }
+
+            canvas.drawBitmap(source, 0f, 0f, paint)
+            preprocessed
+        } catch (_: Throwable) {
+            // Graceful fallback to raw source bitmap on memory pressure
+            source
         }
-
-        canvas.drawBitmap(source, 0f, 0f, paint)
-        return preprocessed
     }
 }

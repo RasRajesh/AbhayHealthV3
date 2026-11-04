@@ -759,5 +759,41 @@ class MedicalFieldParserTest {
         }
 
         assertTrue("Should extract at least 30 parameters from 8 pages", results.size >= 30)
+
+        val urineBlood = results.firstOrNull { it.testName == "Urine Blood" }
+        assertNotNull("Urine Blood result should be present", urineBlood)
+        assertEquals("Positive", urineBlood?.value)
+
+        val tsh = results.firstOrNull { it.testName == "TSH" }
+        assertNotNull("TSH result should be present", tsh)
+        assertEquals("4.520", tsh?.value)
+
+        val totalT3 = results.firstOrNull { it.testName == "Total T3" }
+        assertNotNull("Total T3 result should be present", totalT3)
+        assertEquals("108.0", totalT3?.value)
+    }
+
+    @Test
+    fun testPdfTextExtractorWithRawAndCompressedStreams() {
+        val streamContent = "BT\n/F1 12 Tf\n(AARTHI SCANS & LABS) Tj\nT*\n(Haemoglobin: 12.5 g/dl) Tj\nET"
+        val out = java.io.ByteArrayOutputStream()
+        val deflater = java.util.zip.Deflater()
+        deflater.setInput(streamContent.toByteArray(Charsets.ISO_8859_1))
+        deflater.finish()
+        val buf = ByteArray(1024)
+        while (!deflater.finished()) {
+            val count = deflater.deflate(buf)
+            out.write(buf, 0, count)
+        }
+        deflater.end()
+        val compressedBytes = out.toByteArray()
+
+        val fakePdf = "1 0 obj\n<< /Length ${compressedBytes.size} /Filter /FlateDecode >>\nstream\n".toByteArray(Charsets.ISO_8859_1) +
+                compressedBytes +
+                "\nendstream\nendobj\n%%EOF".toByteArray(Charsets.ISO_8859_1)
+
+        val extracted = PdfTextExtractor.extractTextFromPdfBytes(fakePdf)
+        assertTrue("Should extract text from compressed PDF stream", extracted.contains("AARTHI SCANS & LABS"))
+        assertTrue("Should extract Haemoglobin", extracted.contains("Haemoglobin: 12.5 g/dl"))
     }
 }

@@ -1,5 +1,6 @@
 package com.example.abhayhealth.feature.records
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -264,7 +265,24 @@ fun ExtractionReviewScreen(
                     val isImage = record?.mimeType?.contains("image", ignoreCase = true) == true
 
                     if (path != null && isImage && File(path).exists()) {
-                        val bitmap = remember(path) { BitmapFactory.decodeFile(path) }
+                        val bitmap = remember(path) {
+                            try {
+                                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                                BitmapFactory.decodeFile(path, bounds)
+                                val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+                                var sample = 1
+                                while (maxDim / sample > 1024) {
+                                    sample *= 2
+                                }
+                                val opts = BitmapFactory.Options().apply {
+                                    inSampleSize = sample
+                                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                                }
+                                BitmapFactory.decodeFile(path, opts)
+                            } catch (_: Throwable) {
+                                null
+                            }
+                        }
                         if (bitmap != null) {
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
@@ -272,6 +290,18 @@ fun ExtractionReviewScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(400.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Medical Image Attached",
+                                style = MaterialTheme.typography.titleMedium
                             )
                         }
                     } else {
