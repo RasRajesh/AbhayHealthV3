@@ -70,7 +70,8 @@ class ExtractionReviewViewModel(
     private val _showReExtractWarning = MutableStateFlow(false)
     val showReExtractWarning: StateFlow<Boolean> = _showReExtractWarning.asStateFlow()
 
-    private var activeJob: Job? = null
+    private var loadingJob: Job? = null
+    private var extractionJob: Job? = null
 
     init {
         observeAuthState()
@@ -97,7 +98,8 @@ class ExtractionReviewViewModel(
     }
 
     fun clearAllState() {
-        activeJob?.cancel()
+        loadingJob?.cancel()
+        extractionJob?.cancel()
         _selectedRecord.value = null
         _extractedInfo.value = null
         _documentTitle.value = ""
@@ -114,9 +116,11 @@ class ExtractionReviewViewModel(
     fun loadRecordAndInfo(recordId: Long) {
         val uid = getCurrentUid()
 
-        activeJob?.cancel()
-        activeJob = viewModelScope.launch(dispatcherProvider.main) {
-            val record = medicalRecordRepository.getRecordById(recordId, uid)
+        loadingJob?.cancel()
+        loadingJob = viewModelScope.launch(dispatcherProvider.main) {
+            val record = withContext(dispatcherProvider.io) {
+                medicalRecordRepository.getRecordById(recordId, uid)
+            }
             if (record == null) {
                 clearAllState()
                 _errorMessage.value = "This record is not available."
@@ -124,7 +128,9 @@ class ExtractionReviewViewModel(
             }
 
             _selectedRecord.value = record
-            val info = medicalRecordRepository.getExtractedInfoSync(recordId, uid)
+            val info = withContext(dispatcherProvider.io) {
+                medicalRecordRepository.getExtractedInfoSync(recordId, uid)
+            }
             _extractedInfo.value = info
 
             if (info != null) {
@@ -138,8 +144,19 @@ class ExtractionReviewViewModel(
                     _parsedResults.value = deserialized
                     _parsedMedicines.value = meds
                 } else {
-                    // Stale empty extraction from a previous run (e.g. before bitmap config fix):
-                    // Automatically re-extract so user immediately gets recognized fields!
+                    // Stale empty extraction from a previous run:
+                    // If rawText already has valid medical content, parse it immediately without re-running heavy extraction
+                    if (info.rawText.isNotBlank() && !info.rawText.startsWith("Failed") && !info.rawText.startsWith("No readable") && !info.rawText.startsWith("Could not")) {
+                        val parsedAgain = MedicalFieldParser.parseTestResults(info.rawText)
+                        val medsAgain = MedicalFieldParser.parsePrescriptionMedicines(info.rawText, uid)
+                        if (parsedAgain.isNotEmpty() || medsAgain.isNotEmpty()) {
+                            _documentTitle.value = info.documentTitle.ifBlank { record.title }
+                            _reportDate.value = info.reportDate ?: (MedicalFieldParser.parseReportDate(info.rawText) ?: "")
+                            _parsedResults.value = parsedAgain
+                            _parsedMedicines.value = medsAgain
+                            return@launch
+                        }
+                    }
                     _documentTitle.value = info.documentTitle.ifBlank { record.title }
                     runExtraction(record, force = true)
                 }
@@ -181,7 +198,7 @@ class ExtractionReviewViewModel(
     }
 
     fun cancelExtraction() {
-        activeJob?.cancel()
+        extractionJob?.cancel()
         _isExtracting.value = false
         _hasExtractionFailed.value = true
         _errorMessage.value = "Extraction cancelled. You can retry anytime or add fields manually."
@@ -217,15 +234,38 @@ class ExtractionReviewViewModel(
     fun runExtraction(record: MedicalRecord, force: Boolean = false) {
         val uid = getCurrentUid()
 
-        activeJob?.cancel()
-        activeJob = viewModelScope.launch(dispatcherProvider.main) {
+        extractionJob?.cancel()
+        extractionJob = viewModelScope.launch(dispatcherProvider.main) {
             _isExtracting.value = true
             _hasExtractionFailed.value = false
             _errorMessage.value = null
             _infoMessage.value = null
 
             try {
-                val extraction = DocumentExtractionEngine.extractText(record)
+                // 15 second watchdog so extraction never hangs or blocks the app
+                val extraction = kotlinx.coroutines.withTimeoutOrNull(15000L) {
+                    DocumentExtractionEngine.extractText(record)
+                }
+
+                if (extraction == null) {
+                    _hasExtractionFailed.value = true
+                    _errorMessage.value = "Document extraction timed out. Tap 'Retry Extraction' or add details manually."
+                    val timeoutInfo = ExtractedMedicalInfo(
+                        recordId = record.id,
+                        accountUid = uid,
+                        rawText = "Document extraction timed out.",
+                        documentTitle = record.title,
+                        reportDate = null,
+                        structuredResultsJson = "[]",
+                        reviewStatus = ExtractedMedicalInfo.STATUS_UNREVIEWED,
+                        processedPages = 1
+                    )
+                    withContext(dispatcherProvider.io) {
+                        medicalRecordRepository.saveExtractedInfo(timeoutInfo)
+                    }
+                    _extractedInfo.value = timeoutInfo
+                    return@launch
+                }
 
                 when (extraction) {
                     is ExtractionResult.Success -> {
@@ -246,8 +286,10 @@ class ExtractionReviewViewModel(
                             processedPages = extraction.pagesProcessed
                         )
 
-                        // Save locally
-                        medicalRecordRepository.saveExtractedInfo(info)
+                        // Save locally on IO dispatcher
+                        withContext(dispatcherProvider.io) {
+                            medicalRecordRepository.saveExtractedInfo(info)
+                        }
 
                         _documentTitle.value = title
                         _reportDate.value = date
@@ -257,7 +299,7 @@ class ExtractionReviewViewModel(
 
                         if (results.isEmpty() && medicines.isEmpty()) {
                             _hasExtractionFailed.value = true
-                            _errorMessage.value = "No test results or medicines were detected in this document. Tap 'Retry Extraction' or add fields manually."
+                            _errorMessage.value = "Scanned document text (${raw.length} characters), but no specific test parameters or medicines could be matched. Tap 'Retry Extraction' or add fields manually."
                         } else {
                             _hasExtractionFailed.value = false
                             _infoMessage.value = "Extracted ${results.size} test parameter(s) and ${medicines.size} medicine(s). Please review and verify all fields before saving."
@@ -277,7 +319,9 @@ class ExtractionReviewViewModel(
                             reviewStatus = ExtractedMedicalInfo.STATUS_UNREVIEWED,
                             processedPages = 1
                         )
-                        medicalRecordRepository.saveExtractedInfo(fallbackInfo)
+                        withContext(dispatcherProvider.io) {
+                            medicalRecordRepository.saveExtractedInfo(fallbackInfo)
+                        }
                         _extractedInfo.value = fallbackInfo
                     }
                 }

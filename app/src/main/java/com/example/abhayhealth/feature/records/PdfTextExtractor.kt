@@ -12,12 +12,15 @@ import java.util.zip.InflaterInputStream
  *
  * Extracts text directly from digital PDF content streams (FlateDecode / raw)
  * without rendering bitmaps or invoking ML Kit. This eliminates native memory pressure,
- * provides sub-100ms extraction for digital lab reports & hospital packages, and prevents
+ * provides sub-50ms extraction for digital lab reports & hospital packages, and prevents
  * OutOfMemory / SIGABRT crashes on memory-constrained devices.
  */
 object PdfTextExtractor {
 
     private const val MAX_PDF_BYTES_FOR_EXTRACTION = 25 * 1024 * 1024 // 25 MiB
+    private const val MAX_CONTENT_STREAMS = 35
+    private const val MAX_STREAM_BYTES = 2 * 1024 * 1024 // 2 MiB per stream
+    private const val MAX_TOTAL_EXTRACTED_CHARS = 100_000
 
     fun extractText(file: File): String? {
         if (!file.exists() || !file.canRead() || file.length() == 0L) return null
@@ -44,16 +47,18 @@ object PdfTextExtractor {
         val resultBuilder = StringBuilder()
 
         for (stream in streams) {
+            if (resultBuilder.length >= MAX_TOTAL_EXTRACTED_CHARS) break
+
             val streamText = parsePdfContentStream(stream)
             if (streamText.isNotBlank()) {
-                if (resultBuilder.isNotEmpty()) {
+                if (resultBuilder.isNotEmpty() && !resultBuilder.endsWith("\n")) {
                     resultBuilder.append("\n")
                 }
                 resultBuilder.append(streamText)
             }
         }
 
-        return resultBuilder.toString().trim()
+        return normalizeExtractedText(resultBuilder.toString())
     }
 
     private fun extractContentStreams(bytes: ByteArray): List<ByteArray> {
@@ -61,10 +66,27 @@ object PdfTextExtractor {
         var index = 0
         val streamKeyword = "stream".toByteArray(Charsets.US_ASCII)
         val endstreamKeyword = "endstream".toByteArray(Charsets.US_ASCII)
+        val objKeyword = "obj".toByteArray(Charsets.US_ASCII)
+        val dictStartKeyword = "<<".toByteArray(Charsets.US_ASCII)
 
-        while (index < bytes.size) {
+        while (index < bytes.size && streams.size < MAX_CONTENT_STREAMS) {
             val streamStart = indexOfBytes(bytes, streamKeyword, index)
             if (streamStart == -1) break
+
+            // Inspect ONLY the dictionary header of this specific object (after the nearest 'obj' or '<<')
+            val objIndex = lastIndexOfBytes(bytes, objKeyword, streamStart, maxLookback = 600)
+            val dictIndex = lastIndexOfBytes(bytes, dictStartKeyword, streamStart, maxLookback = 600)
+            val startOfDict = maxOf(0, maxOf(objIndex, dictIndex))
+            val dictHeader = if (streamStart > startOfDict) {
+                String(bytes, startOfDict, streamStart - startOfDict, Charsets.US_ASCII)
+            } else ""
+
+            if (isBinaryDictionary(dictHeader)) {
+                val nextEnd = indexOfBytes(bytes, endstreamKeyword, streamStart)
+                if (nextEnd == -1) break
+                index = nextEnd + endstreamKeyword.size
+                continue
+            }
 
             // Skip 'stream' and following newline (\r\n or \n)
             var contentStart = streamStart + streamKeyword.size
@@ -82,16 +104,18 @@ object PdfTextExtractor {
 
             if (contentEnd > contentStart) {
                 val streamLength = contentEnd - contentStart
-                val rawStream = ByteArray(streamLength)
-                System.arraycopy(bytes, contentStart, rawStream, 0, streamLength)
+                if (streamLength in 1..MAX_STREAM_BYTES) {
+                    val rawStream = ByteArray(streamLength)
+                    System.arraycopy(bytes, contentStart, rawStream, 0, streamLength)
 
-                // Try inflating if FlateDecode
-                val inflated = tryInflate(rawStream)
-                if (inflated != null) {
-                    streams.add(inflated)
-                } else {
-                    // Raw uncompressed stream
-                    streams.add(rawStream)
+                    // Try inflating if FlateDecode
+                    val inflated = tryInflate(rawStream)
+                    val targetStream = inflated ?: rawStream
+
+                    // Only retain streams that actually contain PDF text operators (BT)
+                    if (containsTextOperators(targetStream)) {
+                        streams.add(targetStream)
+                    }
                 }
             }
 
@@ -101,6 +125,37 @@ object PdfTextExtractor {
         return streams
     }
 
+    private fun isBinaryDictionary(dict: String): Boolean {
+        if (dict.isBlank()) return false
+        return dict.contains("/Subtype/Image", ignoreCase = true) ||
+                dict.contains("/Subtype /Image", ignoreCase = true) ||
+                dict.contains("/Filter/DCTDecode", ignoreCase = true) ||
+                dict.contains("/Filter /DCTDecode", ignoreCase = true) ||
+                dict.contains("/Filter/JBIG2Decode", ignoreCase = true) ||
+                dict.contains("/Filter /JBIG2Decode", ignoreCase = true) ||
+                dict.contains("/Filter/JPXDecode", ignoreCase = true) ||
+                dict.contains("/Filter /JPXDecode", ignoreCase = true) ||
+                dict.contains("/Type/Font", ignoreCase = true) ||
+                dict.contains("/Type /Font", ignoreCase = true) ||
+                dict.contains("/Subtype/Type1C", ignoreCase = true) ||
+                dict.contains("/Subtype /Type1C", ignoreCase = true) ||
+                dict.contains("/Subtype/CIDFontType0C", ignoreCase = true) ||
+                dict.contains("/Subtype /CIDFontType0C", ignoreCase = true)
+    }
+
+    private fun containsTextOperators(streamBytes: ByteArray): Boolean {
+        // Fast scan for 'BT' preceded or followed by whitespace
+        for (i in 0 until streamBytes.size - 2) {
+            if (streamBytes[i] == 'B'.code.toByte() && streamBytes[i + 1] == 'T'.code.toByte()) {
+                val next = streamBytes[i + 2].toInt().toChar()
+                if (next.isWhitespace() || next == '\r' || next == '\n') {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     private fun tryInflate(data: ByteArray): ByteArray? {
         // Try standard zlib inflater
         try {
@@ -108,7 +163,7 @@ object PdfTextExtractor {
             inflater.setInput(data)
             val buffer = ByteArray(8192)
             val out = ByteArrayOutputStream()
-            while (!inflater.finished()) {
+            while (!inflater.finished() && out.size() < MAX_STREAM_BYTES) {
                 val count = inflater.inflate(buffer)
                 if (count <= 0) {
                     if (inflater.needsInput() || inflater.needsDictionary()) break
@@ -127,7 +182,7 @@ object PdfTextExtractor {
             inflater.setInput(data)
             val buffer = ByteArray(8192)
             val out = ByteArrayOutputStream()
-            while (!inflater.finished()) {
+            while (!inflater.finished() && out.size() < MAX_STREAM_BYTES) {
                 val count = inflater.inflate(buffer)
                 if (count <= 0) {
                     if (inflater.needsInput() || inflater.needsDictionary()) break
@@ -146,7 +201,7 @@ object PdfTextExtractor {
                 val out = ByteArrayOutputStream()
                 val buffer = ByteArray(8192)
                 var read: Int
-                while (input.read(buffer).also { read = it } != -1) {
+                while (input.read(buffer).also { read = it } != -1 && out.size() < MAX_STREAM_BYTES) {
                     out.write(buffer, 0, read)
                 }
                 val result = out.toByteArray()
@@ -165,9 +220,135 @@ object PdfTextExtractor {
         val len = streamText.length
 
         while (pos < len) {
-            val c = streamText[pos]
+            // Find the start of the next text block (BT)
+            val btIndex = findOperator(streamText, "BT", pos)
+            if (btIndex == -1) break
 
-            // Look for string literal '('
+            val etIndex = findOperator(streamText, "ET", btIndex + 2)
+            val textBlockEnd = if (etIndex != -1) etIndex else len
+
+            var blockPos = btIndex + 2
+            while (blockPos < textBlockEnd) {
+                val c = streamText[blockPos]
+
+                // 1. Array with TJ operator: [ (str1) -20 (str2) ] TJ
+                if (c == '[') {
+                    val arrayEnd = streamText.indexOf(']', blockPos + 1)
+                    if (arrayEnd != -1 && arrayEnd < textBlockEnd) {
+                        val arrayContent = streamText.substring(blockPos + 1, arrayEnd)
+                        val arrayText = parseTjArray(arrayContent)
+                        if (arrayText.isNotBlank()) {
+                            appendWithSpacing(sb, arrayText)
+                        }
+                        blockPos = arrayEnd + 1
+                        continue
+                    }
+                }
+
+                // 2. String literal: ( ... )
+                if (c == '(') {
+                    val start = blockPos + 1
+                    var depth = 1
+                    var i = start
+                    var escaped = false
+
+                    while (i < textBlockEnd && depth > 0) {
+                        val curr = streamText[i]
+                        if (escaped) {
+                            escaped = false
+                        } else if (curr == '\\') {
+                            escaped = true
+                        } else if (curr == '(') {
+                            depth++
+                        } else if (curr == ')') {
+                            depth--
+                        }
+                        i++
+                    }
+
+                    if (depth == 0) {
+                        val rawStr = streamText.substring(start, i - 1)
+                        val unescaped = unescapePdfString(rawStr)
+                        if (unescaped.isNotBlank()) {
+                            appendWithSpacing(sb, unescaped)
+                        }
+                        blockPos = i
+                        continue
+                    } else {
+                        // Unmatched parenthesis, advance by 1 character past the '('
+                        blockPos = start
+                        continue
+                    }
+                }
+
+                // 3. Hex string: < ... > (excluding dictionary <<)
+                if (c == '<' && blockPos + 1 < textBlockEnd && streamText[blockPos + 1] != '<') {
+                    val end = streamText.indexOf('>', blockPos + 1)
+                    if (end != -1 && end < textBlockEnd && end - blockPos < 1000) {
+                        val hex = streamText.substring(blockPos + 1, end).trim()
+                        val decoded = decodeHexPdfString(hex)
+                        if (decoded.isNotBlank()) {
+                            appendWithSpacing(sb, decoded)
+                        }
+                        blockPos = end + 1
+                        continue
+                    }
+                }
+
+                // 4. Line breaking operators: T*, ', ", Td, TD
+                if (c == 'T' && blockPos + 1 < textBlockEnd) {
+                    val next = streamText[blockPos + 1]
+                    if (next == '*' || next == 'D' || next == 'd') {
+                        if (sb.isNotEmpty() && !sb.endsWith('\n')) {
+                            sb.append("\n")
+                        }
+                    }
+                } else if (c == '\'' || c == '"') {
+                    if (sb.isNotEmpty() && !sb.endsWith('\n')) {
+                        sb.append("\n")
+                    }
+                }
+
+                blockPos++
+            }
+
+            // End of text block (ET), ensure line separation
+            if (sb.isNotEmpty() && !sb.endsWith('\n')) {
+                sb.append("\n")
+            }
+
+            pos = if (etIndex != -1) etIndex + 2 else len
+        }
+
+        return sb.toString().trim()
+    }
+
+    private fun findOperator(text: String, op: String, fromIndex: Int): Int {
+        var idx = fromIndex
+        while (idx < text.length) {
+            val found = text.indexOf(op, idx)
+            if (found == -1) return -1
+
+            // Operator must be bounded by whitespace or start/end of line
+            val prevOk = found == 0 || text[found - 1].isWhitespace() || text[found - 1] == '\r' || text[found - 1] == '\n'
+            val nextOk = (found + op.length >= text.length) || text[found + op.length].isWhitespace() || text[found + op.length] == '\r' || text[found + op.length] == '\n'
+
+            if (prevOk && nextOk) {
+                return found
+            }
+            idx = found + 1
+        }
+        return -1
+    }
+
+    private fun parseTjArray(arrayContent: String): String {
+        val result = StringBuilder()
+        var pos = 0
+        val len = arrayContent.length
+
+        while (pos < len) {
+            val c = arrayContent[pos]
+
             if (c == '(') {
                 val start = pos + 1
                 var depth = 1
@@ -175,7 +356,7 @@ object PdfTextExtractor {
                 var escaped = false
 
                 while (i < len && depth > 0) {
-                    val curr = streamText[i]
+                    val curr = arrayContent[i]
                     if (escaped) {
                         escaped = false
                     } else if (curr == '\\') {
@@ -189,55 +370,64 @@ object PdfTextExtractor {
                 }
 
                 if (depth == 0) {
-                    val rawStr = streamText.substring(start, i - 1)
+                    val rawStr = arrayContent.substring(start, i - 1)
                     val unescaped = unescapePdfString(rawStr)
-                    if (unescaped.isNotBlank()) {
-                        if (sb.isNotEmpty() && !sb.endsWith(" ") && !sb.endsWith("\n") &&
-                            !unescaped.startsWith(" ") && !unescaped.startsWith(",") &&
-                            !unescaped.startsWith(":") && !unescaped.startsWith(")") &&
-                            !unescaped.startsWith("-") && !unescaped.startsWith("/")
-                        ) {
-                            sb.append(" ")
-                        }
-                        sb.append(unescaped)
-                    }
+                    result.append(unescaped)
                     pos = i
                     continue
+                } else {
+                    pos = start
+                    continue
                 }
-            }
-
-            // Look for hex string '<...>' (not '<<' dictionary)
-            if (c == '<' && pos + 1 < len && streamText[pos + 1] != '<') {
-                val end = streamText.indexOf('>', pos + 1)
-                if (end != -1 && end - pos < 500) {
-                    val hex = streamText.substring(pos + 1, end).trim()
+            } else if (c == '<' && pos + 1 < len && arrayContent[pos + 1] != '<') {
+                val end = arrayContent.indexOf('>', pos + 1)
+                if (end != -1) {
+                    val hex = arrayContent.substring(pos + 1, end).trim()
                     val decoded = decodeHexPdfString(hex)
-                    if (decoded.isNotBlank()) {
-                        sb.append(decoded)
-                    }
+                    result.append(decoded)
                     pos = end + 1
                     continue
                 }
-            }
-
-            // Detect newline indicators in PDF operators (T*, TD, Td, ET)
-            if (c == 'T' && pos + 1 < len) {
-                val next = streamText[pos + 1]
-                if (next == '*' || next == 'D' || next == 'd') {
-                    if (sb.isNotEmpty() && !sb.endsWith('\n')) {
-                        sb.append("\n")
-                    }
+            } else if (c == '-' || c in '0'..'9') {
+                // Parse number for kerning / space detection
+                var numEnd = pos + 1
+                while (numEnd < len && (arrayContent[numEnd] in '0'..'9' || arrayContent[numEnd] == '.')) {
+                    numEnd++
                 }
-            } else if (c == 'E' && pos + 1 < len && streamText[pos + 1] == 'T') {
-                if (sb.isNotEmpty() && !sb.endsWith('\n')) {
-                    sb.append("\n")
+                val numStr = arrayContent.substring(pos, numEnd)
+                val numVal = numStr.toFloatOrNull() ?: 0f
+                // In PDF fonts, a large negative displacement (e.g. < -180) denotes a word space.
+                if (numVal < -180f && result.isNotEmpty() && !result.endsWith(" ")) {
+                    result.append(" ")
                 }
+                pos = numEnd
+                continue
             }
 
             pos++
         }
 
-        return sb.toString().trim()
+        return result.toString()
+    }
+
+    private fun appendWithSpacing(sb: StringBuilder, text: String) {
+        if (text.isBlank()) return
+        if (sb.isNotEmpty() && !sb.endsWith(" ") && !sb.endsWith("\n") &&
+            !text.startsWith(" ") && !text.startsWith(",") &&
+            !text.startsWith(":") && !text.startsWith(")") &&
+            !text.startsWith("-") && !text.startsWith("/") &&
+            !text.startsWith("%")
+        ) {
+            sb.append(" ")
+        }
+        sb.append(text)
+    }
+
+    private fun normalizeExtractedText(text: String): String {
+        return text
+            .replace(Regex("""[ \t]+"""), " ")
+            .replace(Regex("""\n{3,}"""), "\n\n")
+            .trim()
     }
 
     private fun unescapePdfString(input: String): String {
@@ -284,7 +474,8 @@ object PdfTextExtractor {
 
     private fun decodeHexPdfString(hex: String): String {
         val clean = hex.replace(Regex("""\s+"""), "")
-        if (clean.length % 2 != 0 && clean.length < 2) return ""
+        if (clean.length < 2) return ""
+
         val bytes = ByteArray(clean.length / 2)
         var i = 0
         while (i + 1 < clean.length) {
@@ -292,13 +483,41 @@ object PdfTextExtractor {
             bytes[i / 2] = byteVal.toByte()
             i += 2
         }
-        return String(bytes, Charsets.ISO_8859_1).filter { it.isLetterOrDigit() || it.isWhitespace() || it in ".,-/:%()><" }
+
+        // Check for UTF-16BE (starts with FEFF or alternating 0x00 bytes)
+        if (bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte()) {
+            return String(bytes, 2, bytes.size - 2, Charsets.UTF_16BE)
+        }
+        if (bytes.size >= 4 && bytes[0] == 0.toByte() && bytes[2] == 0.toByte()) {
+            return String(bytes, Charsets.UTF_16BE)
+        }
+
+        return String(bytes, Charsets.ISO_8859_1).filter {
+            it.isLetterOrDigit() || it.isWhitespace() || it in ".,-/:%()><[]#+*="
+        }
     }
 
     private fun indexOfBytes(source: ByteArray, target: ByteArray, fromIndex: Int = 0): Int {
         if (target.isEmpty() || fromIndex >= source.size) return -1
         val max = source.size - target.size
         for (i in fromIndex..max) {
+            var match = true
+            for (j in target.indices) {
+                if (source[i + j] != target[j]) {
+                    match = false
+                    break
+                }
+            }
+            if (match) return i
+        }
+        return -1
+    }
+
+    private fun lastIndexOfBytes(source: ByteArray, target: ByteArray, beforeIndex: Int, maxLookback: Int = 600): Int {
+        if (target.isEmpty() || beforeIndex <= 0) return -1
+        val start = maxOf(0, beforeIndex - maxLookback)
+        val end = minOf(source.size - target.size, beforeIndex)
+        for (i in end downTo start) {
             var match = true
             for (j in target.indices) {
                 if (source[i + j] != target[j]) {
