@@ -7,6 +7,7 @@ import android.os.ParcelFileDescriptor
 import com.example.abhayhealth.core.security.SecurityAudit
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -26,7 +27,7 @@ sealed interface ExtractionResult {
 
 object DocumentExtractionEngine {
 
-    const val MAX_PDF_PAGES = 10
+    const val MAX_OCR_PDF_PAGES = 3
 
     suspend fun extractText(record: MedicalRecord): ExtractionResult = withContext(Dispatchers.IO) {
         val path = record.localFilePath
@@ -58,7 +59,7 @@ object DocumentExtractionEngine {
         // 1. FAST PATH: Direct digital stream text extraction (Zero-bitmap, < 50ms, zero memory/crash risk)
         try {
             val directText = PdfTextExtractor.extractText(file)
-            if (!directText.isNullOrBlank() && directText.length >= 40) {
+            if (!directText.isNullOrBlank() && directText.length >= 30) {
                 return ExtractionResult.Success(
                     rawText = directText,
                     pagesProcessed = 1,
@@ -72,46 +73,50 @@ object DocumentExtractionEngine {
         // 2. OCR FALLBACK: For scanned image PDFs, render with memory-safe dimensions
         var pfd: ParcelFileDescriptor? = null
         var renderer: PdfRenderer? = null
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        var recognizer: TextRecognizer? = null
 
         return try {
-            pfd = ParcelFileDescriptor.open(
-                file,
-                ParcelFileDescriptor.MODE_READ_ONLY
-            )
-            renderer = PdfRenderer(pfd)
+            pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            if (pfd == null) {
+                return ExtractionResult.Error("Unable to open document file descriptor.")
+            }
+
+            renderer = try {
+                PdfRenderer(pfd)
+            } catch (t: Throwable) {
+                SecurityAudit.logError("DocumentExtractionEngine", "PdfRenderer initialization failed", t)
+                return ExtractionResult.Error("Cannot render PDF document: ${t.localizedMessage ?: "Invalid or encrypted PDF"}")
+            }
 
             val pageCount = renderer.pageCount
             if (pageCount == 0) {
                 return ExtractionResult.Error("PDF document contains no readable pages.")
             }
 
-            val pagesToProcess = minOf(pageCount, MAX_PDF_PAGES)
+            recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            val pagesToProcess = minOf(pageCount, MAX_OCR_PDF_PAGES)
             val fullTextBuilder = StringBuilder()
-
             var lastError: Throwable? = null
 
             for (i in 0 until pagesToProcess) {
                 var page: PdfRenderer.Page? = null
-                var bitmap: Bitmap? = null
 
                 try {
                     page = renderer.openPage(i)
-                    val targetMaxDim = 1200
+                    val targetMaxDim = 1000
                     val currentMaxDim = maxOf(page.width, page.height)
                     val scale = if (currentMaxDim > 0) {
-                        (targetMaxDim.toFloat() / currentMaxDim).coerceIn(0.2f, 1.5f)
+                        (targetMaxDim.toFloat() / currentMaxDim).coerceIn(0.2f, 1.2f)
                     } else 1.0f
                     val width = (page.width * scale).toInt().coerceIn(100, targetMaxDim)
                     val height = (page.height * scale).toInt().coerceIn(100, targetMaxDim)
 
-                    // Safe allocation capped at 1200px (max 5.7 MB)
+                    // Safe allocation capped at 1000px (~4 MB)
                     val renderedBitmap = Bitmap.createBitmap(
                         width,
                         height,
                         Bitmap.Config.ARGB_8888
                     )
-                    bitmap = renderedBitmap
                     renderedBitmap.eraseColor(android.graphics.Color.WHITE)
 
                     page.render(
@@ -121,9 +126,20 @@ object DocumentExtractionEngine {
                         PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
                     )
 
+                    // Close native page immediately after rendering
+                    try {
+                        page.close()
+                    } catch (_: Exception) {}
+                    page = null
+
                     val inputImage = InputImage.fromBitmap(renderedBitmap, 0)
-                    val visionText = withTimeoutOrNull(10000L) {
-                        recognizer.process(inputImage).await()
+                    val visionText = try {
+                        withTimeoutOrNull(6000L) {
+                            recognizer.process(inputImage).await()
+                        }
+                    } catch (t: Throwable) {
+                        SecurityAudit.logError("DocumentExtractionEngine", "OCR process failed for page $i", t)
+                        null
                     }
 
                     if (visionText != null && visionText.text.isNotBlank()) {
@@ -137,16 +153,8 @@ object DocumentExtractionEngine {
                     SecurityAudit.logError("DocumentExtractionEngine", "Skipped rendering PDF page $i due to error", t)
                 } finally {
                     try {
-                        bitmap?.let {
-                            if (!it.isRecycled) it.recycle()
-                        }
-                    } catch (_: Exception) {
-                    }
-
-                    try {
                         page?.close()
-                    } catch (_: Exception) {
-                    }
+                    } catch (_: Exception) {}
                 }
             }
 
@@ -160,31 +168,27 @@ object DocumentExtractionEngine {
                 ExtractionResult.Success(
                     rawText = extractedText,
                     pagesProcessed = pagesToProcess,
-                    isPartial = pageCount > MAX_PDF_PAGES
+                    isPartial = pageCount > MAX_OCR_PDF_PAGES
                 )
             }
         } finally {
-            // Close each resource independently so one failure doesn't block the others.
             try {
                 renderer?.close()
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
 
             try {
                 pfd?.close()
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
 
             try {
-                recognizer.close()
-            } catch (_: Exception) {
-            }
+                recognizer?.close()
+            } catch (_: Exception) {}
         }
     }
 
 
     private suspend fun extractFromImage(file: File): ExtractionResult {
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        var recognizer: TextRecognizer? = null
 
         return try {
             val boundsOptions = BitmapFactory.Options().apply {
@@ -200,7 +204,7 @@ object DocumentExtractionEngine {
             }
 
             var sampleSize = 1
-            val maxDimension = 1280
+            val maxDimension = 1200
 
             while (
                 width / sampleSize > maxDimension ||
@@ -232,60 +236,59 @@ object DocumentExtractionEngine {
                 else -> 0
             }
 
-            var preprocessedBitmap: Bitmap? = null
-            try {
-                // Apply grayscale desaturation and contrast enhancement to improve OCR recognition on low-quality/faint photos
-                preprocessedBitmap = DocumentImagePreprocessor.preprocessForOcr(rawBitmap)
+            recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
-                val inputImage = InputImage.fromBitmap(preprocessedBitmap, rotationDegrees)
-                val visionText = withTimeoutOrNull(7000L) {
+            // Apply grayscale desaturation and contrast enhancement to improve OCR recognition on low-quality/faint photos
+            val preprocessedBitmap = try {
+                DocumentImagePreprocessor.preprocessForOcr(rawBitmap)
+            } catch (_: Throwable) {
+                rawBitmap
+            }
+
+            val inputImage = InputImage.fromBitmap(preprocessedBitmap, rotationDegrees)
+            val visionText = try {
+                withTimeoutOrNull(7000L) {
                     recognizer.process(inputImage).await()
                 }
-                var text = visionText?.text?.trim() ?: ""
+            } catch (t: Throwable) {
+                SecurityAudit.logError("DocumentExtractionEngine", "Image OCR failed", t)
+                null
+            }
+            var text = visionText?.text?.trim() ?: ""
 
-                // Resilient fallback: If preprocessing produced little or no text (< 15 chars),
-                // test the original raw bitmap in case the document had unusual color inversion
-                if (text.length < 15 && !rawBitmap.isRecycled) {
-                    try {
-                        val rawInput = InputImage.fromBitmap(rawBitmap, rotationDegrees)
-                        val rawVision = withTimeoutOrNull(4000L) {
-                            recognizer.process(rawInput).await()
-                        }
-                        val fallbackText = rawVision?.text?.trim() ?: ""
-                        if (fallbackText.length > text.length) {
-                            text = fallbackText
-                        }
-                    } catch (t: Throwable) {
-                        SecurityAudit.logError("DocumentExtractionEngine", "Raw fallback OCR attempt skipped", t)
-                    }
-                }
-
-                if (text.isBlank()) {
-                    ExtractionResult.Error("No readable medical text recognized in this document image.")
-                } else {
-                    ExtractionResult.Success(
-                        rawText = text,
-                        pagesProcessed = 1,
-                        isPartial = false
-                    )
-                }
-            } finally {
+            // Resilient fallback: If preprocessing produced little or no text (< 15 chars),
+            // test the original raw bitmap in case the document had unusual color inversion
+            if (text.length < 15 && preprocessedBitmap !== rawBitmap) {
                 try {
-                    preprocessedBitmap?.let {
-                        if (it !== rawBitmap && !it.isRecycled) it.recycle()
+                    val rawInput = InputImage.fromBitmap(rawBitmap, rotationDegrees)
+                    val rawVision = withTimeoutOrNull(4000L) {
+                        recognizer.process(rawInput).await()
                     }
-                } catch (_: Exception) {
-                }
-                try {
-                    if (!rawBitmap.isRecycled) rawBitmap.recycle()
-                } catch (_: Exception) {
+                    val fallbackText = rawVision?.text?.trim() ?: ""
+                    if (fallbackText.length > text.length) {
+                        text = fallbackText
+                    }
+                } catch (t: Throwable) {
+                    SecurityAudit.logError("DocumentExtractionEngine", "Raw fallback OCR attempt skipped", t)
                 }
             }
+
+            if (text.isBlank()) {
+                ExtractionResult.Error("No readable medical text recognized in this document image.")
+            } else {
+                ExtractionResult.Success(
+                    rawText = text,
+                    pagesProcessed = 1,
+                    isPartial = false
+                )
+            }
+        } catch (t: Throwable) {
+            SecurityAudit.logError("DocumentExtractionEngine", "Image extraction crashed", t)
+            ExtractionResult.Error("Image processing failed: ${t.localizedMessage ?: "Unknown error"}")
         } finally {
             try {
-                recognizer.close()
-            } catch (_: Exception) {
-            }
+                recognizer?.close()
+            } catch (_: Exception) {}
         }
     }
 }
