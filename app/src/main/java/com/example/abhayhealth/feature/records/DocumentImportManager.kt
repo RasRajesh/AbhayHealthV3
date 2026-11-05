@@ -30,7 +30,9 @@ object DocumentImportManager {
 
     val ALLOWED_MIME_TYPES = setOf(
         "application/pdf",
+        "application/x-pdf",
         "image/jpeg",
+        "image/jpg",
         "image/png",
         "image/webp"
     )
@@ -43,15 +45,24 @@ object DocumentImportManager {
             val contentResolver = context.contentResolver
 
             // 1. Determine MIME type
-            var mimeType = contentResolver.getType(uri) ?: ""
+            var mimeType = contentResolver.getType(uri)?.lowercase() ?: ""
             val displayName = queryDisplayName(context, uri) ?: "Medical Report"
-            val extension = getExtensionFromFileName(displayName)
+            val extension = getExtensionFromFileName(displayName).lowercase()
 
-            if (mimeType.isBlank()) {
-                mimeType = getMimeTypeFromExtension(extension)
+            if (mimeType.isBlank() || mimeType == "application/octet-stream" || !ALLOWED_MIME_TYPES.contains(mimeType)) {
+                val derivedMime = when (extension) {
+                    "pdf" -> "application/pdf"
+                    "jpg", "jpeg" -> "image/jpeg"
+                    "png" -> "image/png"
+                    "webp" -> "image/webp"
+                    else -> ""
+                }
+                if (derivedMime.isNotBlank()) {
+                    mimeType = derivedMime
+                }
             }
 
-            if (!ALLOWED_MIME_TYPES.contains(mimeType.lowercase())) {
+            if (!ALLOWED_MIME_TYPES.contains(mimeType)) {
                 return DocumentImportResult.Error("Unsupported file type. Please select a PDF, JPEG, PNG, or WEBP document.")
             }
 

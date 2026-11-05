@@ -156,6 +156,7 @@ fun RecordsScreen(
 
     val allowedMimeTypes = arrayOf(
         "application/pdf",
+        "image/*",
         "image/jpeg",
         "image/png",
         "image/webp"
