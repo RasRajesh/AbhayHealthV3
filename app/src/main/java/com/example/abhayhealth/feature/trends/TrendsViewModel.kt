@@ -156,7 +156,7 @@ class TrendsViewModel(
                 if (info.structuredResultsJson.isNotBlank() && info.structuredResultsJson != "[]") {
                     val results = MedicalFieldParser.deserializeResults(info.structuredResultsJson)
                     val dateStr = info.reportDate ?: sdf.format(Date(info.updatedAtTimestamp))
-                    val timestamp = info.updatedAtTimestamp
+                    val timestamp = info.reportDate?.let { MedicalFieldParser.parseDateToTimestamp(it) } ?: info.updatedAtTimestamp
 
                     results.forEach { result ->
                         val testName = result.testName.trim()
@@ -419,7 +419,7 @@ class TrendsViewModel(
         triggers: String,
         durationMinutes: Int
     ) {
-        val uid = authRepository?.currentUser?.uid ?: return
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
         val repo = symptomLogRepository ?: return
 
         viewModelScope.launch(dispatcherProvider.main) {

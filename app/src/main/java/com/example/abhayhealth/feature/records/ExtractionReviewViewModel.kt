@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -242,8 +243,8 @@ class ExtractionReviewViewModel(
             _infoMessage.value = null
 
             try {
-                // 15 second watchdog so extraction never hangs or blocks the app
-                val extraction = kotlinx.coroutines.withTimeoutOrNull(15000L) {
+                // 60 second watchdog so multi-page (8-12 page) OCR never aborts prematurely
+                val extraction = kotlinx.coroutines.withTimeoutOrNull(60_000L) {
                     DocumentExtractionEngine.extractText(record)
                 }
 
@@ -299,10 +300,11 @@ class ExtractionReviewViewModel(
 
                         if (results.isEmpty() && medicines.isEmpty()) {
                             _hasExtractionFailed.value = true
-                            _errorMessage.value = "Scanned document text (${raw.length} characters), but no specific test parameters or medicines could be matched. Tap 'Retry Extraction' or add fields manually."
+                            _errorMessage.value = "Scanned document text (${raw.length} characters across ${extraction.pagesProcessed} page(s)), but no specific test parameters or medicines could be matched. Tap 'Retry Extraction' or add fields manually."
                         } else {
                             _hasExtractionFailed.value = false
-                            _infoMessage.value = "Extracted ${results.size} test parameter(s) and ${medicines.size} medicine(s). Please review and verify all fields before saving."
+                            val partialNote = if (extraction.isPartial) " (First ${extraction.pagesProcessed} pages analyzed)" else " (${extraction.pagesProcessed} page(s))"
+                            _infoMessage.value = "Extracted ${results.size} test parameter(s) and ${medicines.size} medicine(s)$partialNote. Please review and verify all fields before saving."
                         }
                     }
 
@@ -456,13 +458,22 @@ class ExtractionReviewViewModel(
                     medicalRecordRepository.saveExtractedInfoWithTitleUpdate(info, info.documentTitle)
                 }
 
-                // 2. Add medications to MedicationDao and schedule local notification alarms
+                // 2. Add medications to MedicationDao (deduplicated by name + timeSlot) and schedule local notification alarms
                 val dao = medicationDao
                 val medicines = _parsedMedicines.value
                 if (dao != null && medicines.isNotEmpty()) {
                     withContext(dispatcherProvider.io) {
+                        val existingMeds = dao.getMedicationsByAccount(uid).first()
                         medicines.forEach { med ->
-                            val updatedMed = med.copy(accountUid = uid)
+                            val existingMatch = existingMeds.firstOrNull {
+                                it.name.equals(med.name, ignoreCase = true) &&
+                                    it.timeSlot.equals(med.timeSlot, ignoreCase = true)
+                            }
+                            val updatedMed = if (existingMatch != null) {
+                                med.copy(id = existingMatch.id, accountUid = uid, isTaken = existingMatch.isTaken)
+                            } else {
+                                med.copy(accountUid = uid)
+                            }
                             dao.insertOrUpdate(updatedMed)
                             context?.let { ctx ->
                                 MedicationAlarmScheduler.scheduleMedicationAlarm(
@@ -477,13 +488,26 @@ class ExtractionReviewViewModel(
                     }
                 }
 
-                // 3. Extract vitals and add to VitalReadingRepository so they populate Trends & Home
+                // 3. Extract vitals and add to VitalReadingRepository (deduplicated per record) so they populate Trends & Home
+                val reportTimestamp = MedicalFieldParser.parseDateToTimestamp(currentDate) ?: record.recordDate
+                val recordVitalNote = "Extracted from record #${record.id}"
                 val vitals = MedicalFieldParser.extractVitalsFromResults(_parsedResults.value, uid)
                 val vitalRepo = vitalReadingRepository
                 if (vitalRepo != null && vitals.isNotEmpty()) {
                     withContext(dispatcherProvider.io) {
+                        val existingVitals = vitalRepo.getAllReadings(uid).first()
                         vitals.forEach { vital ->
-                            vitalRepo.insertReading(vital)
+                            val taggedVital = vital.copy(timestamp = reportTimestamp, notes = recordVitalNote)
+                            val alreadyExists = existingVitals.any {
+                                it.type == taggedVital.type &&
+                                    it.notes == recordVitalNote &&
+                                    it.systolic == taggedVital.systolic &&
+                                    it.diastolic == taggedVital.diastolic &&
+                                    it.weightKg == taggedVital.weightKg
+                            }
+                            if (!alreadyExists) {
+                                vitalRepo.insertReading(taggedVital)
+                            }
                         }
                     }
                 }

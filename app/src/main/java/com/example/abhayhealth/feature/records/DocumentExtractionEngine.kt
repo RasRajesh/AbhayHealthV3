@@ -27,7 +27,7 @@ sealed interface ExtractionResult {
 
 object DocumentExtractionEngine {
 
-    const val MAX_OCR_PDF_PAGES = 3
+    const val MAX_OCR_PDF_PAGES = 12
 
     suspend fun extractText(record: MedicalRecord): ExtractionResult = withContext(Dispatchers.IO) {
         val path = record.localFilePath
@@ -59,10 +59,11 @@ object DocumentExtractionEngine {
         // 1. FAST PATH: Direct digital stream text extraction (Zero-bitmap, < 50ms, zero memory/crash risk)
         try {
             val directText = PdfTextExtractor.extractText(file)
-            if (!directText.isNullOrBlank() && directText.length >= 30) {
+            if (!directText.isNullOrBlank() && directText.length >= 150) {
+                val pageCount = getPdfPageCount(file) ?: 1
                 return ExtractionResult.Success(
                     rawText = directText,
-                    pagesProcessed = 1,
+                    pagesProcessed = pageCount,
                     isPartial = false
                 )
             }
@@ -100,6 +101,7 @@ object DocumentExtractionEngine {
 
             for (i in 0 until pagesToProcess) {
                 var page: PdfRenderer.Page? = null
+                var renderedBitmap: Bitmap? = null
 
                 try {
                     page = renderer.openPage(i)
@@ -112,7 +114,7 @@ object DocumentExtractionEngine {
                     val height = (page.height * scale).toInt().coerceIn(100, targetMaxDim)
 
                     // Safe allocation capped at 1000px (~4 MB)
-                    val renderedBitmap = Bitmap.createBitmap(
+                    renderedBitmap = Bitmap.createBitmap(
                         width,
                         height,
                         Bitmap.Config.ARGB_8888
@@ -155,6 +157,9 @@ object DocumentExtractionEngine {
                     try {
                         page?.close()
                     } catch (_: Exception) {}
+                    try {
+                        renderedBitmap?.recycle()
+                    } catch (_: Exception) {}
                 }
             }
 
@@ -183,6 +188,21 @@ object DocumentExtractionEngine {
             try {
                 recognizer?.close()
             } catch (_: Exception) {}
+        }
+    }
+
+    private fun getPdfPageCount(file: File): Int? {
+        var pfd: ParcelFileDescriptor? = null
+        var renderer: PdfRenderer? = null
+        return try {
+            pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY) ?: return null
+            renderer = PdfRenderer(pfd)
+            renderer.pageCount
+        } catch (_: Throwable) {
+            null
+        } finally {
+            try { renderer?.close() } catch (_: Exception) {}
+            try { pfd?.close() } catch (_: Exception) {}
         }
     }
 

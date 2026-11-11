@@ -18,9 +18,9 @@ import java.util.zip.InflaterInputStream
 object PdfTextExtractor {
 
     private const val MAX_PDF_BYTES_FOR_EXTRACTION = 25 * 1024 * 1024 // 25 MiB
-    private const val MAX_CONTENT_STREAMS = 35
+    private const val MAX_CONTENT_STREAMS = 150
     private const val MAX_STREAM_BYTES = 2 * 1024 * 1024 // 2 MiB per stream
-    private const val MAX_TOTAL_EXTRACTED_CHARS = 100_000
+    private const val MAX_TOTAL_EXTRACTED_CHARS = 250_000
 
     fun extractText(file: File): String? {
         if (!file.exists() || !file.canRead() || file.length() == 0L) return null

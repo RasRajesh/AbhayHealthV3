@@ -125,7 +125,7 @@ class RecordsViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
-        val uid = authRepository?.currentUser?.uid ?: return
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
         observeRecordsForUid(uid)
     }
 
@@ -227,7 +227,7 @@ class RecordsViewModel(
     }
 
     fun openExportDialog() {
-        val uid = authRepository?.currentUser?.uid ?: return
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
         refreshCounts(uid)
         _exportState.value = ExportReportState.Idle
         _showExportDialog.value = true
@@ -270,11 +270,7 @@ class RecordsViewModel(
     }
 
     private fun performExport(context: Context, onReady: (MedicalReportExportManager, File, String) -> Unit) {
-        val uid = authRepository?.currentUser?.uid
-        if (uid.isNullOrEmpty()) {
-            _exportState.value = ExportReportState.Error("Please sign in to export medical history.")
-            return
-        }
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
 
         val recordRepo = medicalRecordRepository
         val medDao = medicationDao
