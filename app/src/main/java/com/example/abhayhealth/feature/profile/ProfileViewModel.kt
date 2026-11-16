@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
 import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.data.remote.FirestoreHealthRepository
 import com.example.abhayhealth.domain.model.PatientProfile
 import com.example.abhayhealth.domain.repository.AuthRepository
 import com.example.abhayhealth.domain.repository.PatientProfileRepository
@@ -20,7 +21,8 @@ class ProfileViewModel(
     private val profileRepository: PatientProfileRepository,
     private val authRepository: AuthRepository,
     private val userPreferencesRepository: UserPreferencesRepository? = null,
-    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
+    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider(),
+    private val firestoreHealthRepository: FirestoreHealthRepository? = null
 ) : ViewModel() {
 
     private val _fullName = MutableStateFlow("")
@@ -78,7 +80,7 @@ class ProfileViewModel(
     }
 
     fun loadProfileForCurrentUser() {
-        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: return
         viewModelScope.launch(dispatcherProvider.main) {
             profileRepository.getProfile(uid).collect { profile ->
                 if (profile != null) {
@@ -120,7 +122,7 @@ class ProfileViewModel(
         viewModelScope.launch(dispatcherProvider.io) {
             try {
                 val dir = File(context.filesDir, "profile_photos").apply { mkdirs() }
-                val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+                val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: return@launch
                 val photoFile = File(dir, "profile_${uid}.jpg")
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     photoFile.outputStream().use { output ->
@@ -157,7 +159,11 @@ class ProfileViewModel(
     }
 
     fun saveProfile(onSuccess: () -> Unit) {
-        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = authRepository.currentUser?.uid?.ifBlank { null }
+        if (uid == null) {
+            _validationError.value = "Please sign in with Google to save your profile."
+            return
+        }
         val name = _fullName.value.trim()
         if (name.isBlank()) {
             _validationError.value = "Full name is required to save patient profile."
@@ -185,6 +191,7 @@ class ProfileViewModel(
 
             profileRepository.saveProfile(profile)
             userPreferencesRepository?.setPatientName(name)
+            firestoreHealthRepository?.enqueuePatientProfile(profile)
             initialProfile = profile
             _isSaving.value = false
             _saveSuccess.value = true

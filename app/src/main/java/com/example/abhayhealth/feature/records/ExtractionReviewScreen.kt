@@ -92,6 +92,9 @@ fun ExtractionReviewScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val infoMessage by viewModel.infoMessage.collectAsState()
     val showReExtractWarning by viewModel.showReExtractWarning.collectAsState()
+    val isMultiPagePdf by viewModel.isMultiPagePdf.collectAsState()
+    val currentPageIndex by viewModel.currentPageIndex.collectAsState()
+    val totalProcessingPages by viewModel.totalProcessingPages.collectAsState()
 
     var selectedTabIndex by remember { mutableIntStateOf(1) } // Default to Extracted Info tab
     var showAddDialog by remember { mutableStateOf(false) }
@@ -141,7 +144,7 @@ fun ExtractionReviewScreen(
     }
 
     if (showAddMedDialog) {
-        val currentUid = record?.accountUid ?: "local_user"
+        val currentUid = record?.accountUid ?: viewModel.currentAccountUid ?: ""
         AddMedicineDialog(
             onDismiss = { showAddMedDialog = false },
             onAdd = { name, dosage, timeSlot ->
@@ -177,44 +180,16 @@ fun ExtractionReviewScreen(
     }
 
     if (isExtracting) {
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelExtraction() },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { viewModel.cancelExtraction() }) {
-                    Text("Cancel Extraction")
-                }
-            },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.5.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Extracting Health Data...",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Analyzing report text, recognizing biomarker measurements, and extracting prescribed medicines. Please wait...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
+        val curPage by viewModel.currentProcessingPage.collectAsState()
+        val totalPages by viewModel.totalProcessingPages.collectAsState()
+        val statusMsg by viewModel.extractionStatusMessage.collectAsState()
+
+        MultiPagePdfProgressDialog(
+            documentTitle = record?.title ?: title.ifBlank { "Laboratory Diagnostic Report" },
+            currentPage = curPage,
+            totalPages = totalPages,
+            statusMessage = statusMsg,
+            onCancel = { viewModel.cancelExtraction() }
         )
     }
 
@@ -336,6 +311,64 @@ fun ExtractionReviewScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Multi-Page Step Progress Stepper
+                    if (isMultiPagePdf && totalProcessingPages > 1) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Info,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Page $currentPageIndex of $totalProcessingPages Review",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+
+                                        androidx.compose.material3.Surface(
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.primary
+                                        ) {
+                                            Text(
+                                                text = "Page $currentPageIndex / $totalProcessingPages",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    LinearProgressIndicator(
+                                        progress = { currentPageIndex.toFloat() / totalProcessingPages.toFloat() },
+                                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Status Badge Card
                     item {
                         val statusText = when (extractedInfo?.reviewStatus) {
@@ -749,7 +782,11 @@ fun ExtractionReviewScreen(
 
                             Button(
                                 onClick = {
-                                    viewModel.saveReviewedInfo(context = context, onSuccess = onBackClick)
+                                    if (isMultiPagePdf && currentPageIndex < totalProcessingPages) {
+                                        viewModel.saveCurrentPageAndNext(context = context, onSuccess = onBackClick)
+                                    } else {
+                                        viewModel.saveReviewedInfo(context = context, onSuccess = onBackClick)
+                                    }
                                 },
                                 enabled = !isExtracting && !isSaving,
                                 modifier = Modifier
@@ -761,8 +798,10 @@ fun ExtractionReviewScreen(
                                         color = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(24.dp)
                                     )
+                                } else if (isMultiPagePdf && currentPageIndex < totalProcessingPages) {
+                                    Text("Save & Next Page (P${currentPageIndex + 1} →)", fontWeight = FontWeight.SemiBold)
                                 } else {
-                                    Text("Save Reviewed Info", fontWeight = FontWeight.SemiBold)
+                                    Text("Save & Finish Review ✓", fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }

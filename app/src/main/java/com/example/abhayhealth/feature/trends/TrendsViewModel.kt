@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
 import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.data.remote.FirestoreHealthRepository
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.domain.repository.AuthRepository
 import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
@@ -67,7 +68,8 @@ class TrendsViewModel(
     private val authRepository: AuthRepository? = null,
     private val symptomLogRepository: SymptomLogRepository? = null,
     private val vitalReadingRepository: VitalReadingRepository? = null,
-    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
+    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider(),
+    private val firestoreHealthRepository: FirestoreHealthRepository? = null
 ) : ViewModel() {
 
     private val _labTrends = MutableStateFlow<List<BiomarkerTrend>>(emptyList())
@@ -116,17 +118,19 @@ class TrendsViewModel(
     private fun observeBiomarkers() {
         val recordRepo = medicalRecordRepository ?: return
         viewModelScope.launch(dispatcherProvider.main) {
-            val authRepo = authRepository
-            if (authRepo != null) {
-                authRepo.authState.collectLatest { state ->
-                    val uid = when (state) {
-                        is AuthState.Authenticated -> state.user.uid
-                        else -> authRepo.currentUser?.uid?.ifBlank { null } ?: "local_user"
-                    }
-                    observeForUid(uid, recordRepo)
+            val authRepo = authRepository ?: return@launch
+            authRepo.authState.collectLatest { state ->
+                val uid = when (state) {
+                    is AuthState.Authenticated -> state.user.uid
+                    else -> authRepo.currentUser?.uid?.ifBlank { null }
                 }
-            } else {
-                observeForUid("local_user", recordRepo)
+                if (uid == null) {
+                    _biomarkerTrends.value = emptyList()
+                    _labTrends.value = emptyList()
+                    _vitalsTrends.value = emptyList()
+                    return@collectLatest
+                }
+                observeForUid(uid, recordRepo)
             }
         }
     }
@@ -384,19 +388,17 @@ class TrendsViewModel(
     private fun observeSymptoms() {
         val symptomRepo = symptomLogRepository ?: return
         viewModelScope.launch(dispatcherProvider.main) {
-            val authRepo = authRepository
-            if (authRepo != null) {
-                authRepo.authState.collectLatest { state ->
-                    val uid = when (state) {
-                        is AuthState.Authenticated -> state.user.uid
-                        else -> authRepo.currentUser?.uid?.ifBlank { null } ?: "local_user"
-                    }
-                    symptomRepo.getAllSymptoms(uid).collectLatest { list ->
-                        _symptoms.value = list
-                    }
+            val authRepo = authRepository ?: return@launch
+            authRepo.authState.collectLatest { state ->
+                val uid = when (state) {
+                    is AuthState.Authenticated -> state.user.uid
+                    else -> authRepo.currentUser?.uid?.ifBlank { null }
                 }
-            } else {
-                symptomRepo.getAllSymptoms("local_user").collectLatest { list ->
+                if (uid == null) {
+                    _symptoms.value = emptyList()
+                    return@collectLatest
+                }
+                symptomRepo.getAllSymptoms(uid).collectLatest { list ->
                     _symptoms.value = list
                 }
             }
@@ -419,7 +421,7 @@ class TrendsViewModel(
         triggers: String,
         durationMinutes: Int
     ) {
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: return
         val repo = symptomLogRepository ?: return
 
         viewModelScope.launch(dispatcherProvider.main) {
@@ -433,7 +435,8 @@ class TrendsViewModel(
                 triggers = triggers,
                 durationMinutes = durationMinutes
             )
-            repo.logSymptom(entity)
+            val insertedId = repo.logSymptom(entity)
+            firestoreHealthRepository?.enqueueSymptomLog(entity.copy(id = insertedId))
             _showAddSymptomDialog.value = false
         }
     }
@@ -442,6 +445,7 @@ class TrendsViewModel(
         val repo = symptomLogRepository ?: return
         viewModelScope.launch(dispatcherProvider.main) {
             repo.deleteSymptom(symptom)
+            firestoreHealthRepository?.enqueueDeleteSymptomLog(symptom.accountUid, symptom.id)
         }
     }
 

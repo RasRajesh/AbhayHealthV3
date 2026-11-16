@@ -5,14 +5,18 @@
     @androidx.room.Entity *;
     @androidx.room.Dao *;
 }
--keep class in.abhayhealth.app.feature.records.MedicalRecord { *; }
--keep class in.abhayhealth.app.feature.records.ExtractedMedicalInfo { *; }
--keep class in.abhayhealth.app.feature.medicines.PrescriptionMedicationEntity { *; }
+-keep class com.example.abhayhealth.feature.records.** { *; }
+-keep class com.example.abhayhealth.feature.medicines.** { *; }
+-keep class com.example.abhayhealth.feature.symptoms.** { *; }
+-keep class com.example.abhayhealth.feature.vitals.** { *; }
+-keep class com.example.abhayhealth.feature.assistant.** { *; }
 
 # Preserve Data Models for Navigation and Preferences
--keep class in.abhayhealth.app.domain.model.PatientProfile { *; }
--keep class in.abhayhealth.app.domain.model.AuthUser { *; }
--keep class in.abhayhealth.app.domain.model.ParsedMedicalResult { *; }
+-keep class com.example.abhayhealth.domain.model.** { *; }
 
 # Keep Firebase Auth classes
 -keep class com.google.firebase.auth.** { *; }
+
+# Also keep ML Kit text recognition
+-keep class com.google.mlkit.vision.text.** { *; }
+-dontwarn com.google.mlkit.**

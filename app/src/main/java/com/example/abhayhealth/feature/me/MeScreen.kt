@@ -65,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -84,9 +85,9 @@ fun MeScreen(
     viewModel: MeViewModel,
     onEditProfileClick: () -> Unit,
     onSignOutClick: () -> Unit,
+    modifier: Modifier = Modifier,
     onNavigateToRecords: () -> Unit = {},
-    onNavigateToMedicines: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onNavigateToMedicines: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val patientName by viewModel.patientName.collectAsState()
@@ -114,7 +115,7 @@ fun MeScreen(
                     val file = File(uriStr)
                     if (file.exists()) BitmapFactory.decodeFile(uriStr) else null
                 } else {
-                    val uri = Uri.parse(uriStr)
+                    val uri = uriStr.toUri()
                     context.contentResolver.openInputStream(uri)?.use { stream ->
                         BitmapFactory.decodeStream(stream)
                     }
@@ -162,20 +163,20 @@ fun MeScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     SecurityPrivacyItem(
-                        title = "Zero-Knowledge Local Storage",
-                        description = "Medical reports and photos are kept in private app sandbox storage with device-level isolation."
+                        title = "Google Sign-In & Per-User Isolation",
+                        description = "All health records, vitals, medications, and symptoms are strictly isolated to your authenticated Google UID."
                     )
                     SecurityPrivacyItem(
-                        title = "Room SQLite Database Protection",
-                        description = "Diagnostic metrics, lab tests, and prescriptions are saved in protected local database tables."
+                        title = "Real-Time Cloud Firestore Sync",
+                        description = "Your health vault stays backed up and synced in real time across devices with Firebase Security Rules."
                     )
                     SecurityPrivacyItem(
-                        title = "Zero Cloud Sharing",
-                        description = "AbhayHealth does not transmit, share, or sell health metrics to external advertising or tracking networks."
+                        title = "App Check & Offline Room Cache",
+                        description = "Requests are protected by Firebase App Check while keeping offline access cached securely on your device."
                     )
                     SecurityPrivacyItem(
-                        title = "Device Security Verification",
-                        description = "Integrity check passed. File permissions and storage sandboxing verified active."
+                        title = "Full Data Ownership & Erasure",
+                        description = "Export clinical PDF reports anytime or permanently delete both your cloud vault and local device records."
                     )
                 }
             },
@@ -307,7 +308,7 @@ fun MeScreen(
             onDismissRequest = { if (!isDeleting) showDeleteAccountDialog = false },
             title = { Text("Delete Account & Health Data?") },
             text = {
-                Text("Deleting your account will permanently remove your patient profile, local medical records, and extracted health data from this device, and sign you out. This action cannot be undone.")
+                Text("Deleting your account permanently removes your patient profile, medical records, medications, vitals, and symptom history from both Firebase Cloud Firestore and this device. This action cannot be undone.")
             },
             confirmButton = {
                 Button(
@@ -652,7 +653,7 @@ fun MeScreen(
                             Button(
                                 onClick = {
                                     try {
-                                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$contactPhone"))
+                                        val intent = Intent(Intent.ACTION_DIAL, "tel:$contactPhone".toUri())
                                         context.startActivity(intent)
                                     } catch (e: Exception) {
                                         Toast.makeText(context, "Cannot dial: $contactPhone", Toast.LENGTH_SHORT).show()

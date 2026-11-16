@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
 import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.data.remote.FirestoreHealthRepository
 import com.example.abhayhealth.domain.repository.AuthRepository
 import com.example.abhayhealth.domain.repository.PatientProfileRepository
 import com.example.abhayhealth.domain.repository.UserPreferencesRepository
@@ -31,7 +32,8 @@ class MeViewModel(
     private val patientProfileRepository: PatientProfileRepository,
     private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider(),
     private val medicationDao: MedicationDao? = null,
-    private val vitalReadingRepository: VitalReadingRepository? = null
+    private val vitalReadingRepository: VitalReadingRepository? = null,
+    private val firestoreHealthRepository: FirestoreHealthRepository? = null
 ) : ViewModel() {
 
     val patientName: StateFlow<String?> = userPreferencesRepository.patientName.stateIn(
@@ -105,7 +107,7 @@ class MeViewModel(
     }
 
     private fun observeProfile() {
-        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: return
         viewModelScope.launch(dispatcherProvider.main) {
             patientProfileRepository.getProfile(uid).collect {
                 _patientProfile.value = it
@@ -114,7 +116,7 @@ class MeViewModel(
     }
 
     fun openExportDialog() {
-        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = authRepository.currentUser?.uid?.ifBlank { null } ?: return
         refreshCounts(uid)
         _exportState.value = ExportReportState.Idle
         _showExportDialog.value = true
@@ -255,14 +257,22 @@ class MeViewModel(
         }
 
         if (hasFirebaseAuth) {
-            // Step 1: Attempt remote Firebase Auth account deletion
-            authRepository.deleteAccount { success, error ->
-                viewModelScope.launch(dispatcherProvider.main) {
-                    // Step 2: Always purge all local health data thoroughly so nothing remains on HomeScreen
-                    purgeAllLocalHealthData()
-                    authRepository.signOut()
-                    _isDeleting.value = false
-                    onDeleted()
+            // Step 1: Delete cloud Firestore documents while FirebaseAuth.currentUser is still valid
+            viewModelScope.launch(dispatcherProvider.main) {
+                runCatching {
+                    kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                        firestoreHealthRepository?.deleteAllUserData(uid)
+                    }
+                }
+                // Step 2: Delete remote Firebase Auth account
+                authRepository.deleteAccount { _, _ ->
+                    viewModelScope.launch(dispatcherProvider.main) {
+                        // Step 3: Purge all local health data thoroughly
+                        purgeAllLocalHealthData()
+                        authRepository.signOut()
+                        _isDeleting.value = false
+                        onDeleted()
+                    }
                 }
             }
         } else {

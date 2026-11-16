@@ -16,22 +16,22 @@ class GetStartupDestinationUseCase(
         return combine(
             userPreferencesRepository.isOnboardingCompleted,
             authRepository.authState
-        ) { onboardingCompleted, authState ->
-            if (!onboardingCompleted) {
-                StartupDestination.Onboarding
-            } else if (authState is AuthState.Authenticated) {
-                val uid = authState.user.uid
-                val hasProfile = profileRepository.hasProfile(uid)
-                if (hasProfile) StartupDestination.Main else StartupDestination.ProfileSetup
-            } else if (authRepository.isAuthenticated) {
-                val uid = authRepository.currentUser?.uid
-                if (uid != null && profileRepository.hasProfile(uid)) {
-                    StartupDestination.Main
-                } else {
-                    StartupDestination.ProfileSetup
+        ) { _, authState ->
+            when {
+                authState is AuthState.Authenticated -> {
+                    val uid = authState.user.uid
+                    val hasProfile = profileRepository.hasProfile(uid)
+                    if (hasProfile) StartupDestination.Main else StartupDestination.ProfileSetup
                 }
-            } else {
-                StartupDestination.Onboarding
+                authRepository.isAuthenticated -> {
+                    val uid = authRepository.currentUser?.uid
+                    if (uid != null && profileRepository.hasProfile(uid)) {
+                        StartupDestination.Main
+                    } else {
+                        StartupDestination.ProfileSetup
+                    }
+                }
+                else -> StartupDestination.Onboarding
             }
         }
     }

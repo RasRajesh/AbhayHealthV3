@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -7,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.example.abhayhealth"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "in.abhayhealth.app"
@@ -20,11 +22,32 @@ android {
     }
 
     androidResources {
-        localeFilters += listOf("en")
+        localeFilters += listOf("en", "te")
+    }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
+    lint {
+        checkReleaseBuilds = true
+        abortOnError = true
+    }
+
+    signingConfigs {
+        create("debugConfig") {
+            storeFile = file("${rootDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
         debug {
+            signingConfig = signingConfigs.getByName("debugConfig")
         }
         release {
             isMinifyEnabled = true
@@ -41,6 +64,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -56,6 +80,11 @@ android {
                 "/META-INF/ASL2.0",
                 "/META-INF/*.kotlin_module"
             )
+        }
+    }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
         }
     }
 }
@@ -81,26 +110,46 @@ dependencies {
     // Hardware-backed Biometric Prompt - Unused (commented for APK size optimization)
     // implementation(libs.biometric)
 
-    // CameraX - Unused (app uses ActivityResultContracts.OpenDocument with ML Kit OCR)
+    // CameraX dependencies commented out (AISHA face scan removed)
     // implementation(libs.camerax.core)
     // implementation(libs.camerax.camera2)
     // implementation(libs.camerax.lifecycle)
     // implementation(libs.camerax.view)
 
-    // ML Kit Text Recognition (On-Device OCR)
+    // ML Kit Text Recognition (On-Device OCR) & ExifInterface
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.androidx.exifinterface)
 
-    // Firebase Authentication
+    // Firebase Authentication, Firestore, AI Logic & App Check
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.ai)
+    implementation(libs.firebase.appcheck.recaptcha)
+    implementation(libs.firebase.appcheck.debug)
+
+    // Credential Manager & Google Sign-In
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.googleid)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.junit)
-    testImplementation("androidx.test:core:1.6.1")
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.truth)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+tasks.withType<Test> {
+    failFast = true
+    timeout.set(Duration.ofMinutes(2))
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
 }

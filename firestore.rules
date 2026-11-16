@@ -1,0 +1,318 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Core Security Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOptionalString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isOptionalNumber(data, field) {
+      return !(field in data) || data[field] == null || data[field] is int || data[field] is float;
+    }
+
+    function isValidServerTime(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // --- Schema Validation Helpers ---
+    function isValidUserAccount(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             isOptionalString(data, 'email', 320) &&
+             isOptionalString(data, 'displayName', 120) &&
+             isValidServerTime(data.createdAt) &&
+             isValidServerTime(data.updatedAt);
+    }
+
+    function isValidPatientProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+             data.preferredLanguage is string && data.preferredLanguage.size() >= 1 && data.preferredLanguage.size() <= 40 &&
+             data.updatedAtTimestamp is int && data.updatedAtTimestamp >= 0 &&
+             isOptionalString(data, 'dateOfBirth', 40) &&
+             isOptionalString(data, 'gender', 40) &&
+             isOptionalString(data, 'city', 80) &&
+             isOptionalString(data, 'state', 80) &&
+             isOptionalString(data, 'photoUri', 500) &&
+             isOptionalString(data, 'bloodGroup', 16) &&
+             isOptionalString(data, 'allergies', 1000) &&
+             isOptionalString(data, 'healthConditions', 1000) &&
+             isOptionalString(data, 'emergencyContactName', 120) &&
+             isOptionalString(data, 'emergencyContactPhone', 32) &&
+             isOptionalString(data, 'additionalNotes', 2000) &&
+             isValidServerTime(data.createdAt) &&
+             isValidServerTime(data.updatedAt);
+    }
+
+    function isValidMedicalRecordDoc(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.localRecordId is int && data.localRecordId >= 0 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 64 &&
+             data.recordDate is int && data.recordDate >= 0 &&
+             data.createdAtTimestamp is int && data.createdAtTimestamp >= 0 &&
+             data.reviewStatus in ['UNREVIEWED', 'REVIEWED_AND_SAVED', 'EDITED'] &&
+             data.processedPages is int && data.processedPages >= 1 && data.processedPages <= 500 &&
+             data.updatedAtTimestamp is int && data.updatedAtTimestamp >= 0 &&
+             isOptionalString(data, 'mimeType', 120) &&
+             isOptionalString(data, 'documentTitle', 200) &&
+             isOptionalString(data, 'reportDate', 64) &&
+             isOptionalString(data, 'rawText', 100000) &&
+             isOptionalString(data, 'structuredResultsJson', 100000) &&
+             isValidServerTime(data.createdAt) &&
+             isValidServerTime(data.updatedAt);
+    }
+
+    function isValidMedicationDoc(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 160 &&
+             data.dosage is string && data.dosage.size() >= 1 && data.dosage.size() <= 160 &&
+             data.timeSlot is string && data.timeSlot.size() >= 1 && data.timeSlot.size() <= 64 &&
+             data.isTaken is bool &&
+             data.createdAtTimestamp is int && data.createdAtTimestamp >= 0 &&
+             isValidServerTime(data.createdAt) &&
+             isValidServerTime(data.updatedAt);
+    }
+
+    function isValidVitalReadingDoc(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.localVitalId is int && data.localVitalId >= 0 &&
+             data.type in ['BLOOD_PRESSURE', 'WEIGHT'] &&
+             data.timestamp is int && data.timestamp >= 0 &&
+             data.notes is string && data.notes.size() <= 1000 &&
+             isOptionalNumber(data, 'systolic') &&
+             isOptionalNumber(data, 'diastolic') &&
+             isOptionalNumber(data, 'weightKg') &&
+             isValidServerTime(data.createdAt) &&
+             isValidServerTime(data.updatedAt);
+    }
+
+    function isValidSymptomLogDoc(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.localSymptomId is int && data.localSymptomId >= 0 &&
+             data.symptomName is string && data.symptomName.size() >= 1 && data.symptomName.size() <= 160 &&
+             data.severity in ['MILD', 'MODERATE', 'SEVERE', 'CRITICAL'] &&
+             data.severityScore is int && data.severityScore >= 1 && data.severityScore <= 4 &&
+             data.timestamp is int && data.timestamp >= 0 &&
+             data.notes is string && data.notes.size() <= 2000 &&
+             data.triggers is string && data.triggers.size() <= 500 &&
+             data.durationMinutes is int && data.durationMinutes >= 0 && data.durationMinutes <= 100000 &&
+             isValidServerTime(data.createdAt) &&
+             isValidServerTime(data.updatedAt);
+    }
+
+    // --- Collection Rules ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll(['userId', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'email', 'displayName', 'createdAt', 'updatedAt']) &&
+                       isValidUserAccount(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUserAccount(incoming(), userId) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Private PII Patient Profile
+      match /private/{docId} {
+        allow get: if isOwner(userId) && docId == 'profile';
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         docId == 'profile' &&
+                         incoming().keys().hasAll(['userId', 'fullName', 'preferredLanguage', 'updatedAtTimestamp', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'fullName', 'dateOfBirth', 'gender', 'city', 'state',
+                           'preferredLanguage', 'photoUri', 'bloodGroup', 'allergies',
+                           'healthConditions', 'emergencyContactName', 'emergencyContactPhone',
+                           'additionalNotes', 'updatedAtTimestamp', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidPatientProfile(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         docId == 'profile' &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidPatientProfile(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'fullName', 'dateOfBirth', 'gender', 'city', 'state',
+                           'preferredLanguage', 'photoUri', 'bloodGroup', 'allergies',
+                           'healthConditions', 'emergencyContactName', 'emergencyContactPhone',
+                           'additionalNotes', 'updatedAtTimestamp', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && docId == 'profile';
+      }
+
+      // Medical Records + Extracted Information
+      match /records/{recordId} {
+        allow get: if isOwner(userId) && isValidId(recordId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(recordId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localRecordId', 'title', 'category', 'recordDate',
+                           'createdAtTimestamp', 'reviewStatus', 'processedPages',
+                           'updatedAtTimestamp', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localRecordId', 'title', 'category', 'recordDate',
+                           'mimeType', 'createdAtTimestamp', 'documentTitle', 'reportDate',
+                           'rawText', 'structuredResultsJson', 'reviewStatus',
+                           'processedPages', 'updatedAtTimestamp', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidMedicalRecordDoc(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(recordId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().localRecordId == existing().localRecordId &&
+                         isValidMedicalRecordDoc(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'title', 'category', 'recordDate', 'mimeType',
+                           'documentTitle', 'reportDate', 'rawText',
+                           'structuredResultsJson', 'reviewStatus', 'processedPages',
+                           'updatedAtTimestamp', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(recordId);
+      }
+
+      // Daily Prescription Medications
+      match /medications/{medicationId} {
+        allow get: if isOwner(userId) && isValidId(medicationId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(medicationId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'name', 'dosage', 'timeSlot', 'isTaken',
+                           'createdAtTimestamp', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'name', 'dosage', 'timeSlot', 'isTaken',
+                           'createdAtTimestamp', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidMedicationDoc(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(medicationId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().createdAtTimestamp == existing().createdAtTimestamp &&
+                         isValidMedicationDoc(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'name', 'dosage', 'timeSlot', 'isTaken', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(medicationId);
+      }
+
+      // Vital Readings (Blood Pressure / Weight)
+      match /vitals/{vitalId} {
+        allow get: if isOwner(userId) && isValidId(vitalId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(vitalId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localVitalId', 'type', 'timestamp', 'notes',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localVitalId', 'type', 'systolic', 'diastolic',
+                           'weightKg', 'timestamp', 'notes', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidVitalReadingDoc(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(vitalId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().localVitalId == existing().localVitalId &&
+                         isValidVitalReadingDoc(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'type', 'systolic', 'diastolic', 'weightKg',
+                           'timestamp', 'notes', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(vitalId);
+      }
+
+      // Longitudinal Symptom Logs
+      match /symptoms/{symptomId} {
+        allow get: if isOwner(userId) && isValidId(symptomId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(symptomId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localSymptomId', 'symptomName', 'severity',
+                           'severityScore', 'timestamp', 'notes', 'triggers',
+                           'durationMinutes', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localSymptomId', 'symptomName', 'severity',
+                           'severityScore', 'timestamp', 'notes', 'triggers',
+                           'durationMinutes', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidSymptomLogDoc(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(symptomId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().localSymptomId == existing().localSymptomId &&
+                         isValidSymptomLogDoc(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'symptomName', 'severity', 'severityScore', 'timestamp',
+                           'notes', 'triggers', 'durationMinutes', 'updatedAt'
+                         ]);
+
+        allow delete: if isOwner(userId) && isValidId(symptomId);
+      }
+    }
+  }
+}

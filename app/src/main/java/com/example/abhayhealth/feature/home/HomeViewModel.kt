@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
 import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.data.remote.FirestoreHealthRepository
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.domain.model.BiomarkerStatus
 import com.example.abhayhealth.domain.model.ParsedMedicalResult
@@ -44,7 +45,8 @@ class HomeViewModel(
     private val medicationDao: MedicationDao? = null,
     private val patientProfileRepository: PatientProfileRepository? = null,
     private val vitalReadingRepository: VitalReadingRepository? = null,
-    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
+    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider(),
+    private val firestoreHealthRepository: FirestoreHealthRepository? = null
 ) : ViewModel() {
 
     private val _patientProfile = MutableStateFlow<PatientProfile?>(null)
@@ -117,7 +119,11 @@ class HomeViewModel(
         viewModelScope.launch(dispatcherProvider.main) {
             val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
             authFlow.collectLatest { state ->
-                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                val uid = if (state is AuthState.Authenticated) state.user.uid else authRepository?.currentUser?.uid?.ifBlank { null }
+                if (uid == null) {
+                    _todayMedications.value = emptyList()
+                    return@collectLatest
+                }
                 medicationDao?.getMedicationsByAccount(uid)?.collectLatest { list ->
                     _todayMedications.value = list
                 }
@@ -127,18 +133,26 @@ class HomeViewModel(
 
     fun toggleMedicationTaken(id: String) {
         viewModelScope.launch(dispatcherProvider.main) {
-            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
-            withContext(dispatcherProvider.io) {
+            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: return@launch
+            val updated = withContext(dispatcherProvider.io) {
                 medicationDao?.toggleDoseTaken(id, uid)
+                medicationDao?.getMedicationByIdSync(id, uid)
+            }
+            if (updated != null) {
+                firestoreHealthRepository?.enqueueMedication(updated)
             }
         }
     }
 
     fun updateMedicationTime(id: String, newTimeSlot: String) {
         viewModelScope.launch(dispatcherProvider.main) {
-            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
-            withContext(dispatcherProvider.io) {
+            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: return@launch
+            val updated = withContext(dispatcherProvider.io) {
                 medicationDao?.updateMedicationTime(id, uid, newTimeSlot.trim())
+                medicationDao?.getMedicationByIdSync(id, uid)
+            }
+            if (updated != null) {
+                firestoreHealthRepository?.enqueueMedication(updated)
             }
         }
     }
@@ -147,7 +161,12 @@ class HomeViewModel(
         viewModelScope.launch(dispatcherProvider.main) {
             val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
             authFlow.collectLatest { state ->
-                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                val uid = if (state is AuthState.Authenticated) state.user.uid else authRepository?.currentUser?.uid?.ifBlank { null }
+                if (uid == null) {
+                    _extractedInfos.value = emptyList()
+                    _extractedBiomarkers.value = emptyList()
+                    return@collectLatest
+                }
                 medicalRecordRepository?.getAllExtractedInfo(uid)?.collectLatest { list ->
                     _extractedInfos.value = list
                     val allBiomarkers = list.flatMap { info ->
@@ -163,7 +182,11 @@ class HomeViewModel(
         viewModelScope.launch(dispatcherProvider.main) {
             val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
             authFlow.collectLatest { state ->
-                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                val uid = if (state is AuthState.Authenticated) state.user.uid else authRepository?.currentUser?.uid?.ifBlank { null }
+                if (uid == null) {
+                    _patientProfile.value = null
+                    return@collectLatest
+                }
                 patientProfileRepository?.getProfile(uid)?.collectLatest { profile ->
                     _patientProfile.value = profile
                     val resolvedName = profile?.fullName?.ifBlank { null }
@@ -182,7 +205,11 @@ class HomeViewModel(
         viewModelScope.launch(dispatcherProvider.main) {
             val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
             authFlow.collectLatest { state ->
-                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                val uid = if (state is AuthState.Authenticated) state.user.uid else authRepository?.currentUser?.uid?.ifBlank { null }
+                if (uid == null) {
+                    _vitalReadings.value = emptyList()
+                    return@collectLatest
+                }
                 vitalReadingRepository?.getAllReadings(uid)?.collectLatest { readings ->
                     _vitalReadings.value = readings
                 }
@@ -196,11 +223,11 @@ class HomeViewModel(
                 userPreferencesRepository.isAiSummaryEnabled,
                 authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
             ) { enabled, authState ->
-                val uid = if (authState is AuthState.Authenticated) authState.user.uid else "local_user"
+                val uid = if (authState is AuthState.Authenticated) authState.user.uid else authRepository?.currentUser?.uid?.ifBlank { null }
                 Pair(enabled, uid)
             }.collectLatest { (enabled, uid) ->
                 _aiSummaryState.value = _aiSummaryState.value.copy(isEnabled = enabled)
-                if (enabled) {
+                if (enabled && uid != null) {
                     subscribeToHealthData(uid)
                 } else {
                     synthesisJob?.cancel()
@@ -763,9 +790,9 @@ class HomeViewModel(
 
     fun refreshAiSummary() {
         viewModelScope.launch(dispatcherProvider.main) {
+            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: return@launch
             _aiSummaryState.value = _aiSummaryState.value.copy(isLoading = true)
             delay(400) // Brief feedback for smooth UI response
-            val uid = (authRepository?.currentUser?.uid) ?: "local_user"
             subscribeToHealthData(uid)
         }
     }
@@ -794,7 +821,7 @@ class HomeViewModel(
         notes: String
     ) {
         viewModelScope.launch(dispatcherProvider.io) {
-            val uid = (authRepository?.currentUser?.uid) ?: "local_user"
+            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: return@launch
             val reading = VitalReadingEntity(
                 accountUid = uid,
                 type = type.name,
@@ -804,7 +831,10 @@ class HomeViewModel(
                 timestamp = System.currentTimeMillis(),
                 notes = notes
             )
-            vitalReadingRepository?.insertReading(reading)
+            val insertedId = vitalReadingRepository?.insertReading(reading)
+            if (insertedId != null) {
+                firestoreHealthRepository?.enqueueVitalReading(reading.copy(id = insertedId))
+            }
             withContext(dispatcherProvider.main) {
                 _showAddVitalDialog.value = false
                 _selectedVitalMetric.value = type
@@ -812,9 +842,38 @@ class HomeViewModel(
         }
     }
 
+    fun addVitalReading(
+        type: String,
+        systolic: Double?,
+        diastolic: Double?,
+        weightKg: Double?,
+        notes: String
+    ) {
+        viewModelScope.launch(dispatcherProvider.io) {
+            val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: return@launch
+            val reading = VitalReadingEntity(
+                accountUid = uid,
+                type = type,
+                systolic = systolic,
+                diastolic = diastolic,
+                weightKg = weightKg,
+                timestamp = System.currentTimeMillis(),
+                notes = notes
+            )
+            val insertedId = vitalReadingRepository?.insertReading(reading)
+            if (insertedId != null) {
+                firestoreHealthRepository?.enqueueVitalReading(reading.copy(id = insertedId))
+            }
+            withContext(dispatcherProvider.main) {
+                _showAddVitalDialog.value = false
+            }
+        }
+    }
+
     fun deleteVitalReading(reading: VitalReadingEntity) {
         viewModelScope.launch(dispatcherProvider.io) {
             vitalReadingRepository?.deleteReading(reading)
+            firestoreHealthRepository?.enqueueDeleteVitalReading(reading.accountUid, reading.id)
         }
     }
 

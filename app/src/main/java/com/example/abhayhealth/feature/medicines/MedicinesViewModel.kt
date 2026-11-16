@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
 import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.data.remote.FirestoreHealthRepository
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.domain.repository.AuthRepository
 import kotlinx.coroutines.Job
@@ -26,9 +27,12 @@ data class PrescriptionMedication(
 class MedicinesViewModel(
     private val medicationDao: MedicationDao? = null,
     private val authRepository: AuthRepository? = null,
-    private val context: Context? = null,
-    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider()
+    context: Context? = null,
+    private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider(),
+    private val firestoreHealthRepository: FirestoreHealthRepository? = null
 ) : ViewModel() {
+
+    private val appContext: Context? = context?.applicationContext
 
     private val _medications = MutableStateFlow<List<PrescriptionMedication>>(emptyList())
     val medications: StateFlow<List<PrescriptionMedication>> = _medications.asStateFlow()
@@ -45,21 +49,26 @@ class MedicinesViewModel(
     private var observeJob: Job? = null
 
     init {
-        context?.let { ctx ->
+        appContext?.let { ctx ->
             MedicationNotificationHelper.createNotificationChannel(ctx)
         }
         observeAuthState()
     }
 
-    private fun getCurrentUid(): String {
-        return authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+    private fun getCurrentUid(): String? {
+        return authRepository?.currentUser?.uid?.ifBlank { null }
     }
 
     private fun observeAuthState() {
         viewModelScope.launch(dispatcherProvider.main) {
             val authFlow = authRepository?.authState ?: MutableStateFlow(AuthState.Initial)
             authFlow.collectLatest { state ->
-                val uid = if (state is AuthState.Authenticated) state.user.uid else "local_user"
+                val uid = if (state is AuthState.Authenticated) state.user.uid else getCurrentUid()
+                if (uid == null) {
+                    observeJob?.cancel()
+                    _medications.value = emptyList()
+                    return@collectLatest
+                }
                 observeMedicationsForUid(uid)
             }
         }
@@ -81,7 +90,7 @@ class MedicinesViewModel(
                 }
 
                 // Sync alarms with schedule
-                context?.let { ctx ->
+                appContext?.let { ctx ->
                     for (entity in list) {
                         MedicationAlarmScheduler.scheduleMedicationAlarm(
                             context = ctx,
@@ -107,11 +116,11 @@ class MedicinesViewModel(
 
     fun updateMedication(id: String, name: String, dosage: String, timeSlot: String) {
         if (name.isBlank()) return
-        val uid = getCurrentUid()
+        val uid = getCurrentUid() ?: return
         val dao = medicationDao ?: return
 
         viewModelScope.launch(dispatcherProvider.main) {
-            withContext(dispatcherProvider.io) {
+            val updated = withContext(dispatcherProvider.io) {
                 dao.updateMedication(
                     id = id,
                     accountUid = uid,
@@ -119,10 +128,14 @@ class MedicinesViewModel(
                     dosage = dosage.trim().ifBlank { "1 Tablet" },
                     timeSlot = timeSlot.trim()
                 )
+                dao.getMedicationByIdSync(id, uid)
+            }
+            if (updated != null) {
+                firestoreHealthRepository?.enqueueMedication(updated)
             }
 
             // Immediately reschedule alarm for updated reminder time
-            context?.let { ctx ->
+            appContext?.let { ctx ->
                 MedicationAlarmScheduler.scheduleMedicationAlarm(
                     context = ctx,
                     medicationId = id,
@@ -148,7 +161,7 @@ class MedicinesViewModel(
 
     fun addMedication(name: String, dosage: String, timeSlot: String) {
         if (name.isBlank()) return
-        val uid = getCurrentUid()
+        val uid = getCurrentUid() ?: return
         val dao = medicationDao ?: return
 
         val entity = PrescriptionMedicationEntity(
@@ -162,9 +175,10 @@ class MedicinesViewModel(
             withContext(dispatcherProvider.io) {
                 dao.insertOrUpdate(entity)
             }
+            firestoreHealthRepository?.enqueueMedication(entity)
 
             // Immediately schedule alarm for this newly added medication
-            context?.let { ctx ->
+            appContext?.let { ctx ->
                 MedicationAlarmScheduler.scheduleMedicationAlarm(
                     context = ctx,
                     medicationId = entity.id,
@@ -179,22 +193,26 @@ class MedicinesViewModel(
     }
 
     fun toggleDoseTaken(id: String) {
-        val uid = getCurrentUid()
+        val uid = getCurrentUid() ?: return
         val dao = medicationDao ?: return
 
         viewModelScope.launch(dispatcherProvider.main) {
-            withContext(dispatcherProvider.io) {
+            val updated = withContext(dispatcherProvider.io) {
                 dao.toggleDoseTaken(id, uid)
+                dao.getMedicationByIdSync(id, uid)
+            }
+            if (updated != null) {
+                firestoreHealthRepository?.enqueueMedication(updated)
             }
         }
     }
 
     fun removeMedication(id: String) {
-        val uid = getCurrentUid()
+        val uid = getCurrentUid() ?: return
         val dao = medicationDao ?: return
 
         // Cancel scheduled alarm when removed
-        context?.let { ctx ->
+        appContext?.let { ctx ->
             MedicationAlarmScheduler.cancelMedicationAlarm(ctx, id)
         }
 
@@ -202,11 +220,12 @@ class MedicinesViewModel(
             withContext(dispatcherProvider.io) {
                 dao.deleteMedication(id, uid)
             }
+            firestoreHealthRepository?.enqueueDeleteMedication(uid, id)
         }
     }
 
     fun triggerTestReminder(medicineName: String = "Paracetamol", dosage: String = "500 mg - 1 Tab") {
-        context?.let { ctx ->
+        appContext?.let { ctx ->
             MedicationNotificationHelper.showMedicationNotification(
                 context = ctx,
                 medicationId = "test_med_${System.currentTimeMillis()}",
@@ -218,7 +237,7 @@ class MedicinesViewModel(
     }
 
     fun rescheduleAllAlarms() {
-        context?.let { ctx ->
+        appContext?.let { ctx ->
             MedicationAlarmScheduler.rescheduleAllAlarms(ctx)
         }
     }
