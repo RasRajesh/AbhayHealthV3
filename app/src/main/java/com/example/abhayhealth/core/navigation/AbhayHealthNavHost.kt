@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.abhayhealth.data.sync.CloudSyncStatus
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.feature.auth.AuthViewModel
 import com.example.abhayhealth.feature.auth.EnterPhoneScreen
@@ -52,6 +53,7 @@ fun AbhayHealthNavHost(
     meViewModel: MeViewModel,
     modifier: Modifier = Modifier,
     aiAssistantViewModel: AiAssistantViewModel? = null,
+    syncStatus: CloudSyncStatus = CloudSyncStatus.ONLINE_SYNCED,
     navController: NavHostController = rememberNavController()
 ) {
     val authState by authViewModel.authState.collectAsState()
@@ -59,11 +61,6 @@ fun AbhayHealthNavHost(
     // Observe global authentication state for seamless navigation transitions
     LaunchedEffect(authState) {
         when (authState) {
-            is AuthState.CodeSent -> {
-                if (navController.currentDestination?.route != NavRoutes.VERIFY_OTP) {
-                    navController.navigate(NavRoutes.VERIFY_OTP)
-                }
-            }
             is AuthState.Authenticated -> {
                 val currentRoute = navController.currentDestination?.route
                 if (currentRoute == NavRoutes.WELCOME || currentRoute == NavRoutes.VERIFY_OTP || currentRoute == NavRoutes.ENTER_PHONE || currentRoute == NavRoutes.ONBOARDING) {
@@ -157,10 +154,11 @@ fun AbhayHealthNavHost(
         }
 
         composable(NavRoutes.PROFILE_EDIT) {
-            val userPhone = (authState as? AuthState.Authenticated)?.user?.phoneNumber
+            val authUser = (authState as? AuthState.Authenticated)?.user
+            val accountContact = authUser?.email?.takeIf { it.isNotBlank() } ?: authUser?.phoneNumber
             ProfileEditScreen(
                 viewModel = profileViewModel,
-                userPhone = userPhone,
+                userPhone = accountContact,
                 onBackClick = {
                     navController.popBackStack()
                 }
@@ -193,6 +191,7 @@ fun AbhayHealthNavHost(
                 medicinesViewModel = medicinesViewModel,
                 meViewModel = meViewModel,
                 aiAssistantViewModel = aiAssistantViewModel,
+                syncStatus = syncStatus,
                 onEditProfileClick = {
                     profileViewModel.loadProfileForCurrentUser()
                     navController.navigate(NavRoutes.PROFILE_EDIT)

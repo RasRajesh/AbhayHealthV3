@@ -28,9 +28,9 @@
 
     <!-- Welcome / Account Entry Screen -->
     <string name="welcome_title">అభయ్ హెల్త్‌లోకి సైన్ ఇన్ చేయండి</string>
-    <string name="welcome_desc">మొబైల్ OTP ద్వారా సురక్షిత ప్రవేశం. మీ వైద్య రికార్డులు మీ పరికరంలోనే భద్రంగా ఉంటాయి.</string>
-    <string name="welcome_btn_continue">మొబైల్ నంబర్‌తో కొనసాగండి</string>
-    <string name="welcome_privacy_notice">🔒 ఖాతా ప్రామాణీకరణ మీ మొబైల్ గుర్తింపును ధృవీకరిస్తుంది. మీ వ్యక్తిగత ఆరోగ్య పత్రాలు మరియు ప్రిస్క్రిప్షన్‌లు 100% మీ ఫోన్‌లోనే నిల్వ చేయబడతాయి.</string>
+    <string name="welcome_desc">Google సైన్-ఇన్ &amp; Cloud Firestore ద్వారా మీ ఆరోగ్య సమాచారం సురక్షితంగా సింక్ అవుతుంది.</string>
+    <string name="welcome_btn_continue">Google తో కొనసాగండి</string>
+    <string name="welcome_privacy_notice" formatted="false">🔒 Google సైన్-ఇన్, Firebase App Check &amp; ప్రైవేట్ క్లౌడ్ సింక్ రక్షణ</string>
 
     <!-- Enter Phone Screen -->
     <string name="phone_title">మొబైల్ నంబర్‌ను నమోదు చేయండి</string>
@@ -284,4 +284,20 @@
     <string name="home_ai_report_lab_label">ల్యాబ్ / క్లినిక్: %1$s</string>
     <string name="home_ai_report_no_reports">ఇంకా నివేదికలు అప్‌లోడ్ చేయలేదు</string>
     <string name="home_ai_report_no_reports_sub">నివేదిక-నిర్దిష్ట AI సారాంశాల కోసం ల్యాబ్ రిపోర్ట్ లేదా ప్రిస్క్రిప్షన్‌ను అప్‌లోడ్ చేయండి</string>
+
+    <!-- AI Assist Lab Summary PDF Export Strings -->
+    <string name="ai_export_pdf_btn">ల్యాబ్ PDF ఎగుమతి</string>
+    <string name="ai_export_dialog_title">ల్యాబ్ సారాంశ PDF ఎగుమతి</string>
+    <string name="ai_export_dialog_subtitle">ప్రాసెస్ చేసిన ల్యాబ్ డేటా &amp; AI క్లినికల్ సారాంశ నివేదిక</string>
+    <string name="ai_export_scope_label">నివేదిక పరిధి</string>
+    <string name="ai_export_reports_count">%1$d ప్రాసెస్ చేసిన నివేదిక(లు)</string>
+    <string name="ai_export_biomarkers_count">%1$d బయోమార్కర్లు (%2$d పరిధి వెలుపల)</string>
+    <string name="ai_export_generating">ఫార్మాట్ చేసిన ల్యాబ్ సారాంశ PDF సిద్ధమవుతోంది…</string>
+    <string name="ai_export_btn_save">పరికరంలో PDF సేవ్ చేయండి</string>
+    <string name="ai_export_btn_share">ల్యాబ్ సారాంశ PDF పంచుకోండి</string>
+    <string name="ai_export_saved_toast">ల్యాబ్ సారాంశ PDF విజయవంతంగా సేవ్ చేయబడింది!</string>
+
+    <!-- Cloud Sync & Offline Status Strings -->
+    <string name="sync_status_offline">ఆఫ్‌లైన్ మోడ్ — మార్పులు స్థానికంగా సేవ్ చేయబడి సింక్ కోసం వేచి ఉన్నాయి</string>
+    <string name="sync_status_pending">పెండింగ్ మార్పులను క్లౌడ్‌కు సింక్ చేస్తోంది…</string>
 </resources>

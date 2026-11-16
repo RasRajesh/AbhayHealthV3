@@ -2,6 +2,7 @@ package com.example.abhayhealth.feature.profile
 
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -102,7 +103,7 @@ fun ProfileEditScreen(
                     val file = File(uriStr)
                     if (file.exists()) BitmapFactory.decodeFile(uriStr) else null
                 } else {
-                    val uri = Uri.parse(uriStr)
+                    val uri = uriStr.toUri()
                     context.contentResolver.openInputStream(uri)?.use { stream ->
                         BitmapFactory.decodeStream(stream)
                     }
@@ -204,7 +205,7 @@ fun ProfileEditScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = maskPhoneNumber(userPhone),
+                                text = if (userPhone.contains("@")) userPhone else maskPhoneNumber(userPhone),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

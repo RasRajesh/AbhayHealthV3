@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.abhayhealth.core.common.DefaultDispatcherProvider
 import com.example.abhayhealth.core.common.DispatcherProvider
+import com.example.abhayhealth.data.remote.FirestoreHealthRepository
 import com.example.abhayhealth.domain.model.AuthState
 import com.example.abhayhealth.domain.repository.AuthRepository
 import com.example.abhayhealth.domain.repository.PatientProfileRepository
@@ -31,7 +32,8 @@ class RecordsViewModel(
     private val dispatcherProvider: DispatcherProvider = DefaultDispatcherProvider(),
     private val medicationDao: MedicationDao? = null,
     private val vitalReadingRepository: VitalReadingRepository? = null,
-    private val patientProfileRepository: PatientProfileRepository? = null
+    private val patientProfileRepository: PatientProfileRepository? = null,
+    private val firestoreHealthRepository: FirestoreHealthRepository? = null
 ) : ViewModel() {
 
     private val _records = MutableStateFlow<List<MedicalRecord>>(emptyList())
@@ -73,11 +75,12 @@ class RecordsViewModel(
         observeAuthState()
     }
 
+    private fun currentUidOrNull(): String? {
+        return authRepository?.currentUser?.uid?.ifBlank { null }
+    }
+
     private fun observeAuthState() {
-        val authRepo = authRepository ?: run {
-            observeRecordsForUid("local_user")
-            return
-        }
+        val authRepo = authRepository ?: return
         viewModelScope.launch(dispatcherProvider.main) {
             authRepo.authState.collectLatest { state ->
                 when (state) {
@@ -85,8 +88,12 @@ class RecordsViewModel(
                         observeRecordsForUid(state.user.uid)
                     }
                     else -> {
-                        val currentUid = authRepo.currentUser?.uid?.ifBlank { null } ?: "local_user"
-                        observeRecordsForUid(currentUid)
+                        val currentUid = currentUidOrNull()
+                        if (currentUid != null) {
+                            observeRecordsForUid(currentUid)
+                        } else {
+                            clearAllState()
+                        }
                     }
                 }
             }
@@ -94,7 +101,7 @@ class RecordsViewModel(
     }
 
     fun observeRecords() {
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = currentUidOrNull() ?: return
         observeRecordsForUid(uid)
     }
 
@@ -125,7 +132,7 @@ class RecordsViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = currentUidOrNull() ?: return
         observeRecordsForUid(uid)
     }
 
@@ -135,7 +142,11 @@ class RecordsViewModel(
     }
 
     fun importDocument(uri: Uri, context: Context, onImported: ((Long) -> Unit)? = null) {
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = currentUidOrNull()
+        if (uid == null) {
+            _errorMessage.value = "Please sign in with Google before importing medical records."
+            return
+        }
         val repo = medicalRecordRepository
         if (repo == null) {
             _errorMessage.value = "Local database unavailable."
@@ -163,6 +174,7 @@ class RecordsViewModel(
                     )
                     try {
                         val assignedId = repo.insertRecord(record)
+                        firestoreHealthRepository?.enqueueMedicalRecord(record.copy(id = assignedId), null)
                         _infoMessage.value = "Document uploaded successfully. Loading fields for review..."
                         _isImporting.value = false
                         onImported?.invoke(assignedId)
@@ -181,7 +193,7 @@ class RecordsViewModel(
     }
 
     fun openRecord(record: MedicalRecord, context: Context) {
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = currentUidOrNull() ?: record.accountUid
         val error = DocumentImportManager.openRecord(record, context, uid)
         if (error != null) {
             _errorMessage.value = error
@@ -189,8 +201,8 @@ class RecordsViewModel(
     }
 
     fun requestDeleteRecord(record: MedicalRecord) {
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
-        if (record.accountUid != uid && record.accountUid != "local_user") {
+        val uid = currentUidOrNull()
+        if (uid == null || (record.accountUid != uid && record.accountUid != "local_user")) {
             _errorMessage.value = "Unauthorized delete request."
             return
         }
@@ -203,8 +215,8 @@ class RecordsViewModel(
 
     fun confirmDeleteRecord(context: Context) {
         val record = _recordToDelete.value ?: return
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
-        if (record.accountUid != uid && record.accountUid != "local_user") {
+        val uid = currentUidOrNull()
+        if (uid == null || (record.accountUid != uid && record.accountUid != "local_user")) {
             _errorMessage.value = "Unauthorized delete request."
             _recordToDelete.value = null
             return
@@ -214,6 +226,7 @@ class RecordsViewModel(
         viewModelScope.launch(dispatcherProvider.main) {
             try {
                 repo.deleteRecord(record)
+                firestoreHealthRepository?.enqueueDeleteMedicalRecord(record.accountUid, record.id)
                 withContext(Dispatchers.IO) {
                     DocumentImportManager.deleteFile(record.localFilePath, context, record, uid)
                 }
@@ -227,7 +240,7 @@ class RecordsViewModel(
     }
 
     fun openExportDialog() {
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = currentUidOrNull() ?: return
         refreshCounts(uid)
         _exportState.value = ExportReportState.Idle
         _showExportDialog.value = true
@@ -270,7 +283,7 @@ class RecordsViewModel(
     }
 
     private fun performExport(context: Context, onReady: (MedicalReportExportManager, File, String) -> Unit) {
-        val uid = authRepository?.currentUser?.uid?.ifBlank { null } ?: "local_user"
+        val uid = currentUidOrNull() ?: return
 
         val recordRepo = medicalRecordRepository
         val medDao = medicationDao

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import androidx.exifinterface.media.ExifInterface
 import com.example.abhayhealth.core.security.SecurityAudit
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -27,9 +28,10 @@ sealed interface ExtractionResult {
 
 object DocumentExtractionEngine {
 
-    const val MAX_OCR_PDF_PAGES = 12
-
-    suspend fun extractText(record: MedicalRecord): ExtractionResult = withContext(Dispatchers.IO) {
+    suspend fun extractText(
+        record: MedicalRecord,
+        onProgress: ((currentPage: Int, totalPages: Int) -> Unit)? = null
+    ): ExtractionResult = withContext(Dispatchers.IO) {
         val path = record.localFilePath
         if (path.isNullOrBlank()) {
             return@withContext ExtractionResult.Error("Local document file path is missing.")
@@ -44,7 +46,7 @@ object DocumentExtractionEngine {
 
         try {
             if (isPdf) {
-                extractFromPdf(file)
+                extractFromPdf(file, onProgress)
             } else {
                 extractFromImage(file)
             }
@@ -55,23 +57,10 @@ object DocumentExtractionEngine {
     }
 
 
-    private suspend fun extractFromPdf(file: File): ExtractionResult {
-        // 1. FAST PATH: Direct digital stream text extraction (Zero-bitmap, < 50ms, zero memory/crash risk)
-        try {
-            val directText = PdfTextExtractor.extractText(file)
-            if (!directText.isNullOrBlank() && directText.length >= 150) {
-                val pageCount = getPdfPageCount(file) ?: 1
-                return ExtractionResult.Success(
-                    rawText = directText,
-                    pagesProcessed = pageCount,
-                    isPartial = false
-                )
-            }
-        } catch (t: Throwable) {
-            SecurityAudit.logError("DocumentExtractionEngine", "Direct stream extraction failed, falling back to OCR", t)
-        }
-
-        // 2. OCR FALLBACK: For scanned image PDFs, render with memory-safe dimensions
+    private suspend fun extractFromPdf(
+        file: File,
+        onProgress: ((currentPage: Int, totalPages: Int) -> Unit)? = null
+    ): ExtractionResult {
         var pfd: ParcelFileDescriptor? = null
         var renderer: PdfRenderer? = null
         var recognizer: TextRecognizer? = null
@@ -86,6 +75,14 @@ object DocumentExtractionEngine {
                 PdfRenderer(pfd)
             } catch (t: Throwable) {
                 SecurityAudit.logError("DocumentExtractionEngine", "PdfRenderer initialization failed", t)
+                val fallbackDirect = PdfTextExtractor.extractText(file)
+                if (!fallbackDirect.isNullOrBlank()) {
+                    return ExtractionResult.Success(
+                        rawText = fallbackDirect,
+                        pagesProcessed = 1,
+                        isPartial = false
+                    )
+                }
                 return ExtractionResult.Error("Cannot render PDF document: ${t.localizedMessage ?: "Invalid or encrypted PDF"}")
             }
 
@@ -94,26 +91,29 @@ object DocumentExtractionEngine {
                 return ExtractionResult.Error("PDF document contains no readable pages.")
             }
 
+            // Existing text recognition service
             recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            val pagesToProcess = minOf(pageCount, MAX_OCR_PDF_PAGES)
             val fullTextBuilder = StringBuilder()
             var lastError: Throwable? = null
 
-            for (i in 0 until pagesToProcess) {
+            // Iterate through ALL pages of the uploaded PDF using text recognition
+            for (pageIndex in 0 until pageCount) {
+                onProgress?.invoke(pageIndex + 1, pageCount)
+
                 var page: PdfRenderer.Page? = null
                 var renderedBitmap: Bitmap? = null
 
                 try {
-                    page = renderer.openPage(i)
-                    val targetMaxDim = 1000
+                    page = renderer.openPage(pageIndex)
+                    val targetMaxDim = 1200
                     val currentMaxDim = maxOf(page.width, page.height)
                     val scale = if (currentMaxDim > 0) {
-                        (targetMaxDim.toFloat() / currentMaxDim).coerceIn(0.2f, 1.2f)
+                        (targetMaxDim.toFloat() / currentMaxDim).coerceIn(0.2f, 1.5f)
                     } else 1.0f
                     val width = (page.width * scale).toInt().coerceIn(100, targetMaxDim)
                     val height = (page.height * scale).toInt().coerceIn(100, targetMaxDim)
 
-                    // Safe allocation capped at 1000px (~4 MB)
+                    // Safe allocation capped at 1200px (~5 MB), recycled immediately after recognition
                     renderedBitmap = Bitmap.createBitmap(
                         width,
                         height,
@@ -128,7 +128,7 @@ object DocumentExtractionEngine {
                         PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
                     )
 
-                    // Close native page immediately after rendering
+                    // Close native page immediately after rendering to prevent native memory exhaustion
                     try {
                         page.close()
                     } catch (_: Exception) {}
@@ -136,23 +136,26 @@ object DocumentExtractionEngine {
 
                     val inputImage = InputImage.fromBitmap(renderedBitmap, 0)
                     val visionText = try {
-                        withTimeoutOrNull(6000L) {
+                        withTimeoutOrNull(20_000L) {
                             recognizer.process(inputImage).await()
                         }
                     } catch (t: Throwable) {
-                        SecurityAudit.logError("DocumentExtractionEngine", "OCR process failed for page $i", t)
+                        SecurityAudit.logError("DocumentExtractionEngine", "Text recognition failed for page $pageIndex", t)
                         null
                     }
 
-                    if (visionText != null && visionText.text.isNotBlank()) {
+                    val pageText = visionText?.text?.trim()
+                    if (!pageText.isNullOrBlank()) {
                         if (fullTextBuilder.isNotEmpty()) {
-                            fullTextBuilder.append("\n--- Page ${i + 1} ---\n")
+                            fullTextBuilder.append("\n\n--- Page ${pageIndex + 1} of $pageCount ---\n")
+                        } else if (pageCount > 1) {
+                            fullTextBuilder.append("--- Page 1 of $pageCount ---\n")
                         }
-                        fullTextBuilder.append(visionText.text)
+                        fullTextBuilder.append(pageText)
                     }
                 } catch (t: Throwable) {
                     lastError = t
-                    SecurityAudit.logError("DocumentExtractionEngine", "Skipped rendering PDF page $i due to error", t)
+                    SecurityAudit.logError("DocumentExtractionEngine", "Skipped rendering PDF page $pageIndex due to error", t)
                 } finally {
                     try {
                         page?.close()
@@ -163,17 +166,25 @@ object DocumentExtractionEngine {
                 }
             }
 
-            val extractedText = fullTextBuilder.toString().trim()
+            var extractedText = fullTextBuilder.toString().trim()
+
+            // Complement with direct stream text if OCR was blank
+            if (extractedText.isBlank()) {
+                val directText = PdfTextExtractor.extractText(file)
+                if (!directText.isNullOrBlank()) {
+                    extractedText = directText
+                }
+            }
 
             if (extractedText.isBlank()) {
                 val errorMsg = lastError?.localizedMessage
-                    ?: "No readable medical text could be detected from this document ($pagesToProcess page(s) analyzed)."
+                    ?: "No readable medical text could be detected from this document ($pageCount page(s) analyzed)."
                 ExtractionResult.Error(errorMsg)
             } else {
                 ExtractionResult.Success(
                     rawText = extractedText,
-                    pagesProcessed = pagesToProcess,
-                    isPartial = pageCount > MAX_OCR_PDF_PAGES
+                    pagesProcessed = pageCount,
+                    isPartial = false
                 )
             }
         } finally {
@@ -191,18 +202,107 @@ object DocumentExtractionEngine {
         }
     }
 
-    private fun getPdfPageCount(file: File): Int? {
+    fun getPdfPageCount(file: File): Int {
         var pfd: ParcelFileDescriptor? = null
         var renderer: PdfRenderer? = null
         return try {
-            pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY) ?: return null
+            pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY) ?: return 1
             renderer = PdfRenderer(pfd)
             renderer.pageCount
         } catch (_: Throwable) {
-            null
+            1
         } finally {
             try { renderer?.close() } catch (_: Exception) {}
             try { pfd?.close() } catch (_: Exception) {}
+        }
+    }
+
+    suspend fun extractPdfPage(
+        file: File,
+        pageIndex: Int
+    ): ExtractionResult = withContext(Dispatchers.IO) {
+        var pfd: ParcelFileDescriptor? = null
+        var renderer: PdfRenderer? = null
+        var recognizer: TextRecognizer? = null
+
+        try {
+            pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                ?: return@withContext ExtractionResult.Error("Unable to open PDF document.")
+
+            renderer = try {
+                PdfRenderer(pfd)
+            } catch (t: Throwable) {
+                val fallbackDirect = PdfTextExtractor.extractText(file)
+                if (!fallbackDirect.isNullOrBlank()) {
+                    return@withContext ExtractionResult.Success(rawText = fallbackDirect, pagesProcessed = 1)
+                }
+                return@withContext ExtractionResult.Error("Cannot render PDF page.")
+            }
+
+            val totalPages = renderer.pageCount
+            if (pageIndex < 0 || pageIndex >= totalPages) {
+                return@withContext ExtractionResult.Error("Page index $pageIndex out of range (Total: $totalPages).")
+            }
+
+            recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            var pageText: String? = null
+
+            var page: PdfRenderer.Page? = null
+            var renderedBitmap: Bitmap? = null
+
+            try {
+                page = renderer.openPage(pageIndex)
+                val targetMaxDim = 1200
+                val currentMaxDim = maxOf(page.width, page.height)
+                val scale = if (currentMaxDim > 0) {
+                    (targetMaxDim.toFloat() / currentMaxDim).coerceIn(0.2f, 1.5f)
+                } else 1.0f
+                val width = (page.width * scale).toInt().coerceIn(100, targetMaxDim)
+                val height = (page.height * scale).toInt().coerceIn(100, targetMaxDim)
+
+                renderedBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                renderedBitmap.eraseColor(android.graphics.Color.WHITE)
+
+                page.render(renderedBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                try { page.close() } catch (_: Exception) {}
+                page = null
+
+                val inputImage = InputImage.fromBitmap(renderedBitmap, 0)
+                val visionText = withTimeoutOrNull(20_000L) {
+                    recognizer.process(inputImage).await()
+                }
+                pageText = visionText?.text?.trim()
+            } catch (t: Throwable) {
+                SecurityAudit.logError("DocumentExtractionEngine", "Failed page $pageIndex extraction", t)
+            } finally {
+                try { page?.close() } catch (_: Exception) {}
+                try { renderedBitmap?.recycle() } catch (_: Exception) {}
+            }
+
+            var finalPageText = if (!pageText.isNullOrBlank()) {
+                "--- Page ${pageIndex + 1} of $totalPages ---\n$pageText"
+            } else ""
+
+            if (finalPageText.isBlank()) {
+                val direct = PdfTextExtractor.extractText(file)
+                if (!direct.isNullOrBlank()) {
+                    finalPageText = direct
+                }
+            }
+
+            if (finalPageText.isBlank()) {
+                ExtractionResult.Error("No readable text found on Page ${pageIndex + 1} of $totalPages.")
+            } else {
+                ExtractionResult.Success(
+                    rawText = finalPageText,
+                    pagesProcessed = 1,
+                    isPartial = pageIndex + 1 < totalPages
+                )
+            }
+        } finally {
+            try { renderer?.close() } catch (_: Exception) {}
+            try { pfd?.close() } catch (_: Exception) {}
+            try { recognizer?.close() } catch (_: Exception) {}
         }
     }
 
@@ -245,14 +345,14 @@ object DocumentExtractionEngine {
 
             // Read EXIF orientation to ensure camera photos captured in portrait or landscape are not inverted
             val exif = try {
-                android.media.ExifInterface(file.absolutePath)
+                ExifInterface(file.absolutePath)
             } catch (_: Exception) {
                 null
             }
-            val rotationDegrees = when (exif?.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL)) {
-                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
-                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
-                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
+            val rotationDegrees = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270
                 else -> 0
             }
 

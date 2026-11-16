@@ -58,7 +58,49 @@ object PdfTextExtractor {
             }
         }
 
-        return normalizeExtractedText(resultBuilder.toString())
+        val rawExtracted = normalizeExtractedText(resultBuilder.toString())
+        return decodeFontShiftIfNeeded(rawExtracted)
+    }
+
+    private fun decodeFontShiftIfNeeded(text: String): String {
+        if (text.isBlank()) return text
+
+        val keywords = listOf(
+            "RESULT", "RESULTS", "REPORT", "REPORTS", "INVESTIGATION",
+            "METHOD", "UNITS", "THYROID", "HAEMATOLOGY", "BIOCHEMISTRY",
+            "PATHOLOGY", "PATIENT", "FEMALE", "MALE", "SPECIMEN",
+            "REFERENCE", "INTERVAL", "TOTAL", "GLUCOSE", "CHOLESTEROL",
+            "SERUM", "URINE", "NAME", "DATE"
+        )
+
+        val upperDirect = text.uppercase()
+        val directMatchCount = keywords.count { upperDirect.contains(it) }
+        if (directMatchCount >= 2) {
+            return text
+        }
+
+        var bestShift = 0
+        var maxMatches = 0
+
+        for (shift in 1..50) {
+            val candidate = text.map { c ->
+                if (c.code in 32..97) (c.code + shift).toChar() else c
+            }.joinToString("").uppercase()
+
+            val matches = keywords.count { candidate.contains(it) }
+            if (matches > maxMatches) {
+                maxMatches = matches
+                bestShift = shift
+            }
+        }
+
+        if (maxMatches >= 2 && bestShift > 0) {
+            return text.map { c ->
+                if (c.code in 32..97) (c.code + bestShift).toChar() else c
+            }.joinToString("")
+        }
+
+        return text
     }
 
     private fun extractContentStreams(bytes: ByteArray): List<ByteArray> {

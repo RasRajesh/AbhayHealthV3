@@ -122,6 +122,44 @@ class MedicalExtractionEngineUpgradeTest {
         assertEquals(DocumentMedicalStatus.UNCERTAIN, classification2.status)
     }
 
+    @Test
+    fun testMultiPageLabReportIteration() {
+        val page1 = """
+            APOLLO DIAGNOSTICS - CLINICAL BIOCHEMISTRY
+            Patient: Rajesh Kumar Age: 42 Y Date: 12-Nov-2026
+            Hemoglobin: 14.2 g/dL (12.0 - 16.0)
+            Total WBC Count: 7,500 cells/cumm (4,000 - 11,000)
+        """.trimIndent()
+
+        val page2 = """
+            APOLLO DIAGNOSTICS - RENAL & LIVER PANEL
+            Serum Creatinine: 1.0 mg/dL (0.6 - 1.2)
+            Blood Urea: 25.0 mg/dL (13 - 45)
+            SGOT: 28.0 U/L (5 - 34)
+            SGPT: 32.0 U/L (5 - 35)
+        """.trimIndent()
+
+        val page3 = """
+            APOLLO DIAGNOSTICS - LIPID PROFILE
+            Total Cholesterol: 185.0 mg/dL (100 - 200)
+            Triglycerides: 140.0 mg/dL (50 - 150)
+            HDL Cholesterol: 48.0 mg/dL (40 - 60)
+            LDL Cholesterol: 105.0 mg/dL (50 - 100)
+        """.trimIndent()
+
+        val multiPageDoc = "--- Page 1 of 3 ---\n$page1\n\n--- Page 2 of 3 ---\n$page2\n\n--- Page 3 of 3 ---\n$page3"
+
+        val classification = MedicalDocumentClassifier.classifyDocument(multiPageDoc)
+        assertEquals(DocumentMedicalStatus.MEDICAL, classification.status)
+        assertEquals("LAB_REPORT", classification.detectedCategory)
+
+        val results = MedicalFieldParser.parseTestResults(multiPageDoc)
+        assertTrue("Should extract biomarkers from Page 1 (CBC)", results.any { it.testName == "Hemoglobin" })
+        assertTrue("Should extract biomarkers from Page 2 (Renal/Liver)", results.any { it.testName == "Serum Creatinine" })
+        assertTrue("Should extract biomarkers from Page 3 (Lipids)", results.any { it.testName == "Total Cholesterol" })
+        assertTrue("Should extract multiple biomarkers across all 3 pages", results.size >= 6)
+    }
+
     private fun createTwoPageSyntheticPdf(page1Content: String, page2Content: String): ByteArray {
         val stream1 = deflateBytes(page1Content.toByteArray(Charsets.ISO_8859_1))
         val stream2 = deflateBytes(page2Content.toByteArray(Charsets.ISO_8859_1))

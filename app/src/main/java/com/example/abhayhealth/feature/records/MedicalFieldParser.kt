@@ -292,7 +292,7 @@ object MedicalFieldParser {
         return when {
             upper.contains("PRESCRIPTION") || upper.contains("RX") || upper.contains("TAB ") || upper.contains("CAP ") || upper.contains("SYP ") || upper.contains("DOSAGE") ->
                 "PRESCRIPTION"
-            upper.contains("PATHOLOGY") || upper.contains("BIOCHEMISTRY") || upper.contains("HAEMATOLOGY") || upper.contains("REFERENCE RANGE") || upper.contains("LABORATORY") || upper.contains("TEST REPORT") ->
+            upper.contains("PATHOLOGY") || upper.contains("BIOCHEMISTRY") || upper.contains("HAEMATOLOGY") || upper.contains("REFERENCE RANGE") || upper.contains("LABORATORY") || upper.contains("TEST REPORT") || upper.contains("DIAGNOSTICS") || upper.contains("BLOOD COUNT") || upper.contains("CBC") ->
                 "LAB_REPORT"
             upper.contains("X-RAY") || upper.contains("ULTRASOUND") || upper.contains("MRI") || upper.contains("CT SCAN") || upper.contains("SONOGRAPHY") ->
                 "IMAGING"

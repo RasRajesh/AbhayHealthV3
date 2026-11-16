@@ -11,9 +11,9 @@ import com.example.abhayhealth.feature.auth.EnterPhoneScreen
 @Composable
 fun OnboardingScreen(
     viewModel: OnboardingViewModel,
+    modifier: Modifier = Modifier,
     authViewModel: AuthViewModel? = null,
-    onOnboardingFinished: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onOnboardingFinished: () -> Unit = {}
 ) {
     if (authViewModel != null) {
         EnterPhoneScreen(

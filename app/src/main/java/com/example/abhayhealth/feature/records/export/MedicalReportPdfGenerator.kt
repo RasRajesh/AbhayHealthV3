@@ -3,6 +3,7 @@ package com.example.abhayhealth.feature.records.export
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import androidx.core.graphics.toColorInt
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -27,6 +28,23 @@ import java.util.Locale
  * Formatted specifically for clinical review by healthcare providers.
  */
 class MedicalReportPdfGenerator(private val context: Context) {
+
+    data class LabReportEntry(
+        val title: String,
+        val category: String,
+        val dateText: String,
+        val results: List<ParsedMedicalResult>,
+        val rawTextExcerpt: String? = null
+    )
+
+    data class LabSummaryReportData(
+        val patientProfile: PatientProfile?,
+        val scopeTitle: String,
+        val aiSummaryNarrative: String,
+        val keyMetrics: List<String>,
+        val labReports: List<LabReportEntry>,
+        val generatedAt: Long = System.currentTimeMillis()
+    )
 
     data class ReportData(
         val patientProfile: PatientProfile?,
@@ -68,7 +86,7 @@ class MedicalReportPdfGenerator(private val context: Context) {
     }
 
     private val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E0F2FE")
+        color = "#E0F2FE".toColorInt()
         textSize = 8.5f
     }
 
@@ -235,6 +253,414 @@ class MedicalReportPdfGenerator(private val context: Context) {
         return destinationFile
     }
 
+    /**
+     * Generates a formatted A4 PDF report dedicated to processed laboratory data,
+     * extracted clinical biomarkers, out-of-range indicators, and AI Assistant clinical summary.
+     */
+    fun generateLabSummaryPdf(data: LabSummaryReportData, destinationFile: File): File {
+        val document = PdfDocument()
+        var pageNumber = 1
+        var currentPageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
+        var currentPage = document.startPage(currentPageInfo)
+        var canvas = currentPage.canvas
+
+        val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+        val generatedDateStr = dateFormat.format(Date(data.generatedAt))
+
+        var yCursor = drawLabSummaryHeader(canvas, generatedDateStr, data.scopeTitle, isFirstPage = true)
+
+        fun ensureVerticalSpace(neededHeight: Float) {
+            if (yCursor + neededHeight > MARGIN_BOTTOM) {
+                drawPageFooter(canvas, pageNumber)
+                document.finishPage(currentPage)
+
+                pageNumber++
+                currentPageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
+                currentPage = document.startPage(currentPageInfo)
+                canvas = currentPage.canvas
+
+                yCursor = drawLabSummaryHeader(canvas, generatedDateStr, data.scopeTitle, isFirstPage = false)
+            }
+        }
+
+        // 1. Patient Demographics Card
+        ensureVerticalSpace(105f)
+        yCursor = drawPatientDemographicsCard(canvas, yCursor, data.patientProfile)
+
+        // 2. Lab Summary Metrics Strip
+        val totalBiomarkers = data.labReports.sumOf { it.results.size }
+        val abnormalCount = data.labReports.sumOf { entry -> entry.results.count { it.isOutOfRange } }
+        ensureVerticalSpace(56f)
+        yCursor = drawLabStatsBanner(
+            canvas = canvas,
+            yStart = yCursor,
+            reportCount = data.labReports.size,
+            biomarkerCount = totalBiomarkers,
+            abnormalCount = abnormalCount
+        )
+
+        // 3. AI Clinical Executive Summary
+        val wrappedSummaryLines = wrapText(
+            text = data.aiSummaryNarrative.ifBlank {
+                "Clinical synthesis generated from processed laboratory records stored on device."
+            },
+            paint = bodyRegularPaint,
+            maxWidth = CONTENT_WIDTH - 24f
+        )
+        val metricsRowHeight = if (data.keyMetrics.isNotEmpty()) 22f else 0f
+        val summaryCardHeight = 36f + metricsRowHeight + (wrappedSummaryLines.size * 12.5f) + 12f
+        ensureVerticalSpace(summaryCardHeight.coerceAtMost(240f))
+        yCursor = drawAiSummaryCard(canvas, yCursor, data.scopeTitle, wrappedSummaryLines, data.keyMetrics)
+
+        // 4. Processed Laboratory Reports & Biomarkers (Paginated Row-by-Row)
+        ensureVerticalSpace(44f)
+        yCursor = drawSectionTitle(canvas, yCursor, "PROCESSED LABORATORY RESULTS & BIOMARKERS", totalBiomarkers)
+
+        if (data.labReports.isEmpty()) {
+            ensureVerticalSpace(34f)
+            yCursor = drawEmptyStateNotice(canvas, yCursor, "No processed lab reports found for the selected scope.")
+        } else {
+            data.labReports.forEach { entry ->
+                // Report Title Banner
+                ensureVerticalSpace(48f)
+                yCursor = drawLabEntryBanner(canvas, yCursor, entry)
+
+                if (entry.results.isNotEmpty()) {
+                    ensureVerticalSpace(24f)
+                    yCursor = drawLabBiomarkerTableHeader(canvas, yCursor)
+
+                    entry.results.forEachIndexed { idx, marker ->
+                        ensureVerticalSpace(22f)
+                        yCursor = drawLabBiomarkerTableRow(canvas, yCursor, marker, idx % 2 == 1)
+                    }
+                    yCursor += 10f
+                } else {
+                    val excerpt = entry.rawTextExcerpt?.replace("\n", " ")?.trim().orEmpty()
+                    val displayExcerpt = if (excerpt.isNotBlank()) {
+                        excerpt.take(260) + if (excerpt.length > 260) "..." else ""
+                    } else {
+                        "Document archived locally; no numeric biomarkers extracted."
+                    }
+                    val lines = wrapText(displayExcerpt, bodySecondaryPaint, CONTENT_WIDTH - 24f).take(5)
+                    val boxH = 14f + (lines.size * 11f)
+                    ensureVerticalSpace(boxH + 8f)
+                    val rect = RectF(MARGIN_LEFT, yCursor, MARGIN_RIGHT, yCursor + boxH)
+                    fillPaint.color = COLOR_BG_LIGHT
+                    canvas.drawRoundRect(rect, 4f, 4f, fillPaint)
+                    canvas.drawRoundRect(rect, 4f, 4f, borderPaint)
+                    var lineY = yCursor + 12f
+                    lines.forEach { line ->
+                        canvas.drawText(line, MARGIN_LEFT + 10f, lineY, bodySecondaryPaint)
+                        lineY += 11f
+                    }
+                    yCursor += boxH + 10f
+                }
+            }
+        }
+
+        // 5. Clinician Notes & Attestation
+        ensureVerticalSpace(110f)
+        yCursor = drawClinicianSignatureArea(canvas, yCursor)
+
+        drawPageFooter(canvas, pageNumber)
+        document.finishPage(currentPage)
+
+        destinationFile.parentFile?.mkdirs()
+        FileOutputStream(destinationFile).use { outputStream ->
+            document.writeTo(outputStream)
+        }
+        document.close()
+
+        return destinationFile
+    }
+
+    private fun drawLabSummaryHeader(
+        canvas: Canvas,
+        generatedDateStr: String,
+        scopeTitle: String,
+        isFirstPage: Boolean
+    ): Float {
+        val headerHeight = if (isFirstPage) 74f else 38f
+        val rect = RectF(MARGIN_LEFT, MARGIN_TOP, MARGIN_RIGHT, MARGIN_TOP + headerHeight)
+
+        fillPaint.color = COLOR_PRIMARY
+        canvas.drawRoundRect(rect, 8f, 8f, fillPaint)
+
+        if (isFirstPage) {
+            val emblemCx = MARGIN_LEFT + 28f
+            val emblemCy = MARGIN_TOP + 37f
+            fillPaint.color = Color.WHITE
+            canvas.drawCircle(emblemCx, emblemCy, 18f, fillPaint)
+
+            fillPaint.color = COLOR_PRIMARY
+            canvas.drawRect(emblemCx - 3.5f, emblemCy - 11f, emblemCx + 3.5f, emblemCy + 11f, fillPaint)
+            canvas.drawRect(emblemCx - 11f, emblemCy - 3.5f, emblemCx + 11f, emblemCy + 3.5f, fillPaint)
+
+            canvas.drawText("ABHAY HEALTH", MARGIN_LEFT + 56f, MARGIN_TOP + 28f, titlePaint.apply { textSize = 15f })
+            canvas.drawText("Processed Lab Data & AI Clinical Summary Report", MARGIN_LEFT + 56f, MARGIN_TOP + 44f, subtitlePaint)
+            canvas.drawText("Scope: ${scopeTitle.take(44)}", MARGIN_LEFT + 56f, MARGIN_TOP + 58f, subtitlePaint)
+
+            val badgeRect = RectF(MARGIN_RIGHT - 160f, MARGIN_TOP + 12f, MARGIN_RIGHT - 12f, MARGIN_TOP + 32f)
+            fillPaint.color = "#1E293B".toColorInt()
+            canvas.drawRoundRect(badgeRect, 4f, 4f, fillPaint)
+
+            val badgeTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = "#FDE047".toColorInt()
+                textSize = 7.5f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            canvas.drawText("AI LAB SUMMARY REPORT", MARGIN_RIGHT - 148f, MARGIN_TOP + 25f, badgeTextPaint)
+
+            val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = "#E2E8F0".toColorInt()
+                textSize = 7.5f
+            }
+            canvas.drawText("Generated: $generatedDateStr", MARGIN_RIGHT - 160f, MARGIN_TOP + 54f, datePaint)
+
+            return MARGIN_TOP + headerHeight + 14f
+        } else {
+            canvas.drawText(
+                "ABHAY HEALTH — PROCESSED LAB SUMMARY (Continued)",
+                MARGIN_LEFT + 14f,
+                MARGIN_TOP + 24f,
+                titlePaint.apply { textSize = 10f }
+            )
+            val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                textSize = 7.5f
+            }
+            canvas.drawText(generatedDateStr, MARGIN_RIGHT - 110f, MARGIN_TOP + 24f, datePaint)
+            return MARGIN_TOP + headerHeight + 12f
+        }
+    }
+
+    private fun drawLabStatsBanner(
+        canvas: Canvas,
+        yStart: Float,
+        reportCount: Int,
+        biomarkerCount: Int,
+        abnormalCount: Int
+    ): Float {
+        val boxHeight = 42f
+        val gap = 10f
+        val cardW = (CONTENT_WIDTH - (gap * 2f)) / 3f
+
+        val items = listOf(
+            Triple("LAB REPORTS ANALYZED", "$reportCount", COLOR_PRIMARY),
+            Triple("BIOMARKERS EXTRACTED", "$biomarkerCount", COLOR_SECONDARY),
+            Triple(
+                "OUT-OF-RANGE ALERTS",
+                "$abnormalCount",
+                if (abnormalCount > 0) COLOR_ACCENT_RED else COLOR_ACCENT_GREEN
+            )
+        )
+
+        items.forEachIndexed { idx, (label, value, accent) ->
+            val left = MARGIN_LEFT + idx * (cardW + gap)
+            val rect = RectF(left, yStart, left + cardW, yStart + boxHeight)
+            fillPaint.color = COLOR_BG_LIGHT
+            canvas.drawRoundRect(rect, 6f, 6f, fillPaint)
+            canvas.drawRoundRect(rect, 6f, 6f, borderPaint)
+
+            fillPaint.color = accent
+            canvas.drawRoundRect(RectF(left, yStart, left + 4f, yStart + boxHeight), 3f, 3f, fillPaint)
+
+            canvas.drawText(label, left + 12f, yStart + 14f, footerPaint)
+            val valPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = accent
+                textSize = 13f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            canvas.drawText(value, left + 12f, yStart + 32f, valPaint)
+        }
+
+        return yStart + boxHeight + 12f
+    }
+
+    private fun drawAiSummaryCard(
+        canvas: Canvas,
+        yStart: Float,
+        scopeTitle: String,
+        wrappedLines: List<String>,
+        keyMetrics: List<String>
+    ): Float {
+        val hasMetrics = keyMetrics.isNotEmpty()
+        val metricsHeight = if (hasMetrics) 20f else 0f
+        val bodyHeight = wrappedLines.size * 12.5f
+        val cardHeight = 34f + metricsHeight + bodyHeight + 10f
+
+        val rect = RectF(MARGIN_LEFT, yStart, MARGIN_RIGHT, yStart + cardHeight)
+        fillPaint.color = "#F0FDFA".toColorInt()
+        canvas.drawRoundRect(rect, 6f, 6f, fillPaint)
+        canvas.drawRoundRect(rect, 6f, 6f, borderPaint)
+
+        fillPaint.color = COLOR_PRIMARY
+        canvas.drawRoundRect(RectF(MARGIN_LEFT, yStart, MARGIN_LEFT + 4f, yStart + cardHeight), 3f, 3f, fillPaint)
+
+        canvas.drawText(
+            "AI CLINICAL EXECUTIVE SUMMARY • ${scopeTitle.uppercase().take(36)}",
+            MARGIN_LEFT + 12f,
+            yStart + 16f,
+            sectionHeaderPaint.apply { textSize = 9.5f }
+        )
+
+        var yPos = yStart + 26f
+        if (hasMetrics) {
+            var chipX = MARGIN_LEFT + 12f
+            val chipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = COLOR_PRIMARY_DARK
+                textSize = 7.5f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            keyMetrics.take(4).forEach { metric ->
+                val text = metric.take(24)
+                val w = chipPaint.measureText(text) + 12f
+                if (chipX + w <= MARGIN_RIGHT - 10f) {
+                    val chipRect = RectF(chipX, yPos, chipX + w, yPos + 14f)
+                    fillPaint.color = Color.WHITE
+                    canvas.drawRoundRect(chipRect, 4f, 4f, fillPaint)
+                    canvas.drawRoundRect(chipRect, 4f, 4f, borderPaint)
+                    canvas.drawText(text, chipX + 6f, yPos + 10f, chipPaint)
+                    chipX += w + 6f
+                }
+            }
+            yPos += 20f
+        }
+
+        wrappedLines.forEach { line ->
+            canvas.drawText(line, MARGIN_LEFT + 12f, yPos + 9f, bodyRegularPaint)
+            yPos += 12.5f
+        }
+
+        return yStart + cardHeight + 14f
+    }
+
+    private fun drawLabEntryBanner(
+        canvas: Canvas,
+        yStart: Float,
+        entry: LabReportEntry
+    ): Float {
+        val bannerHeight = 26f
+        val rect = RectF(MARGIN_LEFT, yStart, MARGIN_RIGHT, yStart + bannerHeight)
+        fillPaint.color = COLOR_BG_LIGHT
+        canvas.drawRoundRect(rect, 5f, 5f, fillPaint)
+        canvas.drawRoundRect(rect, 5f, 5f, borderPaint)
+
+        val categoryRect = RectF(MARGIN_LEFT + 8f, yStart + 5f, MARGIN_LEFT + 86f, yStart + 21f)
+        fillPaint.color = "#E0F2FE".toColorInt()
+        canvas.drawRoundRect(categoryRect, 3f, 3f, fillPaint)
+
+        val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_PRIMARY
+            textSize = 7f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        canvas.drawText(entry.category.uppercase().take(12), MARGIN_LEFT + 12f, yStart + 16f, tagPaint)
+        canvas.drawText(entry.title.take(40), MARGIN_LEFT + 94f, yStart + 17f, bodyBoldPaint.apply { textSize = 9f })
+
+        val metaText = "${entry.dateText} • ${entry.results.size} markers"
+        canvas.drawText(
+            metaText,
+            MARGIN_RIGHT - bodySecondaryPaint.measureText(metaText) - 10f,
+            yStart + 17f,
+            bodySecondaryPaint
+        )
+        return yStart + bannerHeight + 4f
+    }
+
+    private fun drawLabBiomarkerTableHeader(canvas: Canvas, yStart: Float): Float {
+        val rect = RectF(MARGIN_LEFT, yStart, MARGIN_RIGHT, yStart + 18f)
+        fillPaint.color = "#E2E8F0".toColorInt()
+        canvas.drawRoundRect(rect, 4f, 4f, fillPaint)
+
+        val headerTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_TEXT_PRIMARY
+            textSize = 7.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+
+        canvas.drawText("TEST PARAMETER", MARGIN_LEFT + 8f, yStart + 12f, headerTextPaint)
+        canvas.drawText("OBSERVED", MARGIN_LEFT + 205f, yStart + 12f, headerTextPaint)
+        canvas.drawText("UNIT", MARGIN_LEFT + 275f, yStart + 12f, headerTextPaint)
+        canvas.drawText("REFERENCE RANGE", MARGIN_LEFT + 345f, yStart + 12f, headerTextPaint)
+        canvas.drawText("STATUS", MARGIN_LEFT + 455f, yStart + 12f, headerTextPaint)
+
+        return yStart + 20f
+    }
+
+    private fun drawLabBiomarkerTableRow(
+        canvas: Canvas,
+        yStart: Float,
+        marker: ParsedMedicalResult,
+        isAlt: Boolean
+    ): Float {
+        val rowHeight = 20f
+        val rect = RectF(MARGIN_LEFT, yStart, MARGIN_RIGHT, yStart + rowHeight)
+        fillPaint.color = if (isAlt) COLOR_ROW_ALT else Color.WHITE
+        canvas.drawRect(rect, fillPaint)
+        canvas.drawLine(MARGIN_LEFT, yStart + rowHeight, MARGIN_RIGHT, yStart + rowHeight, borderPaint)
+
+        canvas.drawText(marker.testName.take(32), MARGIN_LEFT + 8f, yStart + 13f, bodyRegularPaint)
+        canvas.drawText(marker.value.take(12), MARGIN_LEFT + 205f, yStart + 13f, bodyBoldPaint.apply { textSize = 8.5f })
+        canvas.drawText(marker.unit.ifBlank { "-" }.take(12), MARGIN_LEFT + 275f, yStart + 13f, bodySecondaryPaint)
+        canvas.drawText(marker.referenceRange.ifBlank { "Standard" }.take(20), MARGIN_LEFT + 345f, yStart + 13f, bodySecondaryPaint)
+
+        val (statusLabel, statusBg, statusFg) = when {
+            marker.status.name.contains("CRITICAL") -> Triple(
+                "CRITICAL",
+                "#FEE2E2".toColorInt(),
+                COLOR_ACCENT_RED
+            )
+            marker.isOutOfRange -> Triple(
+                marker.status.name.take(8),
+                "#FEF3C7".toColorInt(),
+                "#B45309".toColorInt()
+            )
+            else -> Triple(
+                "NORMAL",
+                "#DCFCE7".toColorInt(),
+                COLOR_ACCENT_GREEN
+            )
+        }
+
+        val pillRect = RectF(MARGIN_LEFT + 455f, yStart + 3f, MARGIN_RIGHT - 6f, yStart + 16f)
+        fillPaint.color = statusBg
+        canvas.drawRoundRect(pillRect, 3f, 3f, fillPaint)
+
+        val statusPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = statusFg
+            textSize = 6.8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        canvas.drawText(statusLabel, MARGIN_LEFT + 461f, yStart + 12f, statusPaint)
+
+        return yStart + rowHeight
+    }
+
+    private fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
+        val result = mutableListOf<String>()
+        val paragraphs = text.split("\n")
+        for (paragraph in paragraphs) {
+            val words = paragraph.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+            if (words.isEmpty()) {
+                result.add("")
+                continue
+            }
+            var currentLine = StringBuilder(words.first())
+            for (i in 1 until words.size) {
+                val candidate = "${currentLine} ${words[i]}"
+                if (paint.measureText(candidate) <= maxWidth) {
+                    currentLine.append(" ").append(words[i])
+                } else {
+                    result.add(currentLine.toString())
+                    currentLine = StringBuilder(words[i])
+                }
+            }
+            result.add(currentLine.toString())
+        }
+        return result
+    }
+
     private fun drawPageHeader(canvas: Canvas, generatedDateStr: String, isFirstPage: Boolean): Float {
         val headerHeight = if (isFirstPage) 72f else 38f
         val rect = RectF(MARGIN_LEFT, MARGIN_TOP, MARGIN_RIGHT, MARGIN_TOP + headerHeight)
@@ -262,18 +688,18 @@ class MedicalReportPdfGenerator(private val context: Context) {
 
             // Generated date & confidentiality badge on right side
             val badgeRect = RectF(MARGIN_RIGHT - 165f, MARGIN_TOP + 12f, MARGIN_RIGHT - 12f, MARGIN_TOP + 32f)
-            fillPaint.color = Color.parseColor("#1E293B")
+            fillPaint.color = "#1E293B".toColorInt()
             canvas.drawRoundRect(badgeRect, 4f, 4f, fillPaint)
 
             val badgeTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FDE047") // Yellow gold
+                color = "#FDE047".toColorInt() // Yellow gold
                 textSize = 7.5f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             canvas.drawText("CONFIDENTIAL MEDICAL SUMMARY", MARGIN_RIGHT - 160f, MARGIN_TOP + 25f, badgeTextPaint)
 
             val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#E2E8F0")
+                color = "#E2E8F0".toColorInt()
                 textSize = 7.5f
             }
             canvas.drawText("Generated: $generatedDateStr", MARGIN_RIGHT - 165f, MARGIN_TOP + 54f, datePaint)
@@ -332,7 +758,7 @@ class MedicalReportPdfGenerator(private val context: Context) {
         canvas.drawText("BLOOD GROUP", col3X, yStart + 18f, bodySecondaryPaint)
         // Blood Group Pill Badge
         val bgRect = RectF(col3X, yStart + 21f, col3X + 55f, yStart + 35f)
-        fillPaint.color = if (bloodGroup != "Unknown") Color.parseColor("#FEE2E2") else Color.parseColor("#E2E8F0")
+        fillPaint.color = if (bloodGroup != "Unknown") "#FEE2E2".toColorInt() else "#E2E8F0".toColorInt()
         canvas.drawRoundRect(bgRect, 4f, 4f, fillPaint)
 
         val bgTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -396,7 +822,7 @@ class MedicalReportPdfGenerator(private val context: Context) {
 
     private fun drawMedicationTableHeader(canvas: Canvas, yStart: Float): Float {
         val rect = RectF(MARGIN_LEFT, yStart, MARGIN_RIGHT, yStart + 18f)
-        fillPaint.color = Color.parseColor("#E2E8F0")
+        fillPaint.color = "#E2E8F0".toColorInt()
         canvas.drawRoundRect(rect, 4f, 4f, fillPaint)
 
         val headerTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -438,8 +864,8 @@ class MedicalReportPdfGenerator(private val context: Context) {
 
         // Intake Status pill
         val statusText = if (med.isTaken) "Taken Today" else "Scheduled"
-        val statusBg = if (med.isTaken) Color.parseColor("#DCFCE7") else Color.parseColor("#FEF3C7")
-        val statusFg = if (med.isTaken) COLOR_ACCENT_GREEN else Color.parseColor("#D97706")
+        val statusBg = if (med.isTaken) "#DCFCE7".toColorInt() else "#FEF3C7".toColorInt()
+        val statusFg = if (med.isTaken) COLOR_ACCENT_GREEN else "#D97706".toColorInt()
 
         val pillRect = RectF(MARGIN_LEFT + 440f, yStart + 3f, MARGIN_LEFT + 515f, yStart + 17f)
         fillPaint.color = statusBg
@@ -457,7 +883,7 @@ class MedicalReportPdfGenerator(private val context: Context) {
 
     private fun drawVitalsTableHeader(canvas: Canvas, yStart: Float): Float {
         val rect = RectF(MARGIN_LEFT, yStart, MARGIN_RIGHT, yStart + 18f)
-        fillPaint.color = Color.parseColor("#E2E8F0")
+        fillPaint.color = "#E2E8F0".toColorInt()
         canvas.drawRoundRect(rect, 4f, 4f, fillPaint)
 
         val headerTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -543,7 +969,7 @@ class MedicalReportPdfGenerator(private val context: Context) {
 
         // Category Tag
         val categoryRect = RectF(MARGIN_LEFT + 8f, yStart + 5f, MARGIN_LEFT + 75f, yStart + 21f)
-        fillPaint.color = Color.parseColor("#E0F2FE")
+        fillPaint.color = "#E0F2FE".toColorInt()
         canvas.drawRoundRect(categoryRect, 3f, 3f, fillPaint)
 
         val tagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -607,7 +1033,7 @@ class MedicalReportPdfGenerator(private val context: Context) {
 
         // Ruled lines for doctor's clinical review notes
         val rulePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#CBD5E1")
+            color = "#CBD5E1".toColorInt()
             strokeWidth = 0.8f
         }
         canvas.drawLine(MARGIN_LEFT + 12f, yStart + 32f, MARGIN_RIGHT - 180f, yStart + 32f, rulePaint)

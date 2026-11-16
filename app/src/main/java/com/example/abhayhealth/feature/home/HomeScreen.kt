@@ -48,8 +48,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.filled.Speed
@@ -105,14 +105,17 @@ import com.example.abhayhealth.feature.records.ExtractedMedicalInfo
 import com.example.abhayhealth.feature.vitals.AddVitalReadingDialog
 import com.example.abhayhealth.feature.vitals.HealthTrendsChartCard
 import com.example.abhayhealth.feature.vitals.VitalType
+import com.example.abhayhealth.feature.vitals.FingerprintVitalsScannerDialog
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    onAddRecordClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAddRecordClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    var showManualAddVitalDialog by remember { mutableStateOf(false) }
+
     val patientProfile by viewModel.patientProfile.collectAsState()
     val patientName by viewModel.patientName.collectAsState()
     val isAiEnabled by viewModel.isAiEnabled.collectAsState()
@@ -151,20 +154,30 @@ fun HomeScreen(
         }
         if (sugar != null) "${sugar.value} ${sugar.unit}".trim() else "95 mg/dL"
     }
-    val latestHr = remember(extractedBiomarkers) {
-        val hr = extractedBiomarkers.firstOrNull {
-            it.testName.contains("Heart", ignoreCase = true) || it.testName.contains("Pulse", ignoreCase = true)
+    val latestHr = remember(extractedBiomarkers, vitalReadings) {
+        val hrReading = vitalReadings.firstOrNull { it.type == "HEART_RATE" && it.systolic != null }
+        if (hrReading != null) {
+            "${hrReading.systolic?.toInt()} BPM"
+        } else {
+            val hr = extractedBiomarkers.firstOrNull {
+                it.testName.contains("Heart", ignoreCase = true) || it.testName.contains("Pulse", ignoreCase = true)
+            }
+            if (hr != null) "${hr.value} BPM".trim() else "72 BPM"
         }
-        if (hr != null) "${hr.value} BPM".trim() else "72 BPM"
     }
-    val latestSpo2 = remember(extractedBiomarkers) {
-        val spo2 = extractedBiomarkers.firstOrNull {
-            it.testName.contains("SpO2", ignoreCase = true) || it.testName.contains("Oxygen", ignoreCase = true)
+    val latestSpo2 = remember(extractedBiomarkers, vitalReadings) {
+        val spo2Reading = vitalReadings.firstOrNull { it.type == "OXYGEN_SATURATION" && it.systolic != null }
+        if (spo2Reading != null) {
+            "${spo2Reading.systolic?.toInt()}%"
+        } else {
+            val spo2 = extractedBiomarkers.firstOrNull {
+                it.testName.contains("SpO2", ignoreCase = true) || it.testName.contains("Oxygen", ignoreCase = true)
+            }
+            if (spo2 != null) {
+                val raw = spo2.value.trim()
+                if (raw.endsWith("%")) raw else "$raw%"
+            } else "98%"
         }
-        if (spo2 != null) {
-            val raw = spo2.value.trim()
-            if (raw.endsWith("%")) raw else "$raw%"
-        } else "98%"
     }
 
 
@@ -224,7 +237,8 @@ fun HomeScreen(
             }
         }
 
-        // 2. Biometric Health Telemeter (Central Medical Infographic Silhouette & Clinical Telemetry)
+
+        // 3. Biometric Health Telemeter (Central Medical Infographic Silhouette & Clinical Telemetry)
         item {
             MedicalInfographicCard(
                 bloodPressure = latestBp,
@@ -246,6 +260,11 @@ fun HomeScreen(
                     selectedBiomarkerModal = SelectedBiomarkerModal(name, bio, displayVal)
                 }
             )
+        }
+
+        // 4. Emergency Medical SOS & Paramedic ICE Identification Card
+        item {
+            EmergencyMedicalCard(patientProfile = patientProfile)
         }
 
 
@@ -284,19 +303,7 @@ fun HomeScreen(
                     onToggleTaken = { id -> viewModel.toggleMedicationTaken(id) }
                 )
 
-                if (todayMedications.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        todayMedications.forEach { medication ->
-                            HomeMedicationItemRow(
-                                medication = medication,
-                                onToggleTaken = { viewModel.toggleMedicationTaken(medication.id) }
-                            )
-                        }
-                    }
-                }
+
             }
         }
     }
@@ -537,7 +544,7 @@ fun HomeScreen(
                 onDismissRequest = { viewModel.dismissDialog() },
                 icon = {
                     Icon(
-                        imageVector = Icons.Default.ShowChart,
+                        imageVector = Icons.AutoMirrored.Filled.ShowChart,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -595,11 +602,46 @@ fun HomeScreen(
     }
 
     if (showAddVitalDialog) {
+        FingerprintVitalsScannerDialog(
+            onDismissRequest = { viewModel.showAddVitalDialog(false) },
+            onVitalsScanned = { systolic, diastolic, heartRate, spo2 ->
+                viewModel.addVitalReading(
+                    type = "BLOOD_PRESSURE",
+                    systolic = systolic,
+                    diastolic = diastolic,
+                    weightKg = null,
+                    notes = "Optical Fingerprint Scan (HR: ${heartRate.toInt()} bpm, SpO2: ${spo2.toInt()}%)"
+                )
+                viewModel.addVitalReading(
+                    type = "HEART_RATE",
+                    systolic = heartRate,
+                    diastolic = null,
+                    weightKg = null,
+                    notes = "Optical Fingerprint Scan"
+                )
+                viewModel.addVitalReading(
+                    type = "OXYGEN_SATURATION",
+                    systolic = spo2,
+                    diastolic = null,
+                    weightKg = null,
+                    notes = "Optical Fingerprint Scan"
+                )
+                viewModel.showAddVitalDialog(false)
+            },
+            onSwitchToManual = {
+                viewModel.showAddVitalDialog(false)
+                showManualAddVitalDialog = true
+            }
+        )
+    }
+
+    if (showManualAddVitalDialog) {
         AddVitalReadingDialog(
             initialMetric = selectedVitalMetric,
-            onDismissRequest = { viewModel.showAddVitalDialog(false) },
+            onDismissRequest = { showManualAddVitalDialog = false },
             onSaveReading = { type, systolic, diastolic, weightKg, notes ->
                 viewModel.addVitalReading(type, systolic, diastolic, weightKg, notes)
+                showManualAddVitalDialog = false
             }
         )
     }
@@ -862,12 +904,12 @@ fun BiomarkerDetailDialog(
 @Composable
 private fun AiHealthSummaryCard(
     state: AiHealthSummaryUiState,
-    onSelectScope: (AiSummaryScope, Long?) -> Unit = { _, _ -> },
     onRefresh: () -> Unit,
     onOpenSafetyAudit: () -> Unit,
     onOpenDoctorBrief: () -> Unit,
     onOpenLabExplainer: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSelectScope: (AiSummaryScope, Long?) -> Unit = { _, _ -> }
 ) {
     OutlinedCard(
         modifier = modifier
@@ -1166,7 +1208,7 @@ private fun AiHealthSummaryCard(
                     label = { Text(stringResource(id = R.string.home_ai_chip_explainer)) },
                     leadingIcon = {
                         Icon(
-                            imageVector = Icons.Default.ShowChart,
+                            imageVector = Icons.AutoMirrored.Filled.ShowChart,
                             contentDescription = null,
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.secondary
@@ -1199,7 +1241,7 @@ private fun AiInsightRow(
         ) {
             val (icon, iconTint) = when (insight.category) {
                 AiInsightCategory.MEDICATION -> Pair(Icons.Default.Medication, MaterialTheme.colorScheme.primary)
-                AiInsightCategory.LAB_VITAL -> Pair(Icons.Default.ShowChart, MaterialTheme.colorScheme.tertiary)
+                AiInsightCategory.LAB_VITAL -> Pair(Icons.AutoMirrored.Filled.ShowChart, MaterialTheme.colorScheme.tertiary)
                 AiInsightCategory.ALLERGY_SAFETY -> Pair(Icons.Default.Shield, MaterialTheme.colorScheme.error)
                 AiInsightCategory.CARE_ADVICE -> Pair(Icons.Default.Favorite, MaterialTheme.colorScheme.secondary)
             }
@@ -1280,6 +1322,10 @@ private fun ExtractedInformationSection(
     biomarkers: List<ParsedMedicalResult>,
     modifier: Modifier = Modifier
 ) {
+    val outOfRangeBiomarkers = remember(biomarkers) {
+        biomarkers.filter { it.isOutOfRange }
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -1308,7 +1354,7 @@ private fun ExtractedInformationSection(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Extracted Information",
+                        text = "Out-of-Range Clinical Parameters",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -1316,13 +1362,13 @@ private fun ExtractedInformationSection(
                 }
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = if (outOfRangeBiomarkers.isNotEmpty()) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
-                        text = "${biomarkers.size} Extracted Markers",
+                        text = if (outOfRangeBiomarkers.isNotEmpty()) "${outOfRangeBiomarkers.size} Need Attention" else "All Normal ✓",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = if (outOfRangeBiomarkers.isNotEmpty()) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
@@ -1340,9 +1386,34 @@ private fun ExtractedInformationSection(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                biomarkers.forEach { biomarker ->
-                    ExtractedBiomarkerRow(biomarker = biomarker)
+            if (outOfRangeBiomarkers.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = if (biomarkers.isEmpty()) "No extracted biomarkers recorded yet." else "All ${biomarkers.size} extracted biomarkers are within normal reference range.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    outOfRangeBiomarkers.forEach { biomarker ->
+                        ExtractedBiomarkerRow(biomarker = biomarker)
+                    }
                 }
             }
         }

@@ -54,6 +54,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -190,22 +191,6 @@ fun MedicinesScreen(
                     )
                 }
             }
-        }
-
-        item {
-            Text(
-                text = stringResource(id = R.string.meds_section_schedule),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        }
-
-        item {
-            MedicationDailyTimelineGraph(
-                medicationList = medications,
-                onToggleTaken = { id -> viewModel.toggleDoseTaken(id) }
-            )
         }
 
         if (medications.isEmpty()) {
@@ -446,10 +431,10 @@ private fun ReminderTimeEditor(
     }
 
     var hour12 by remember(parsedH) {
-        mutableStateOf(if (parsedH == 0) 12 else if (parsedH > 12) parsedH - 12 else parsedH)
+        mutableIntStateOf(if (parsedH == 0) 12 else if (parsedH > 12) parsedH - 12 else parsedH)
     }
     var minute by remember(parsedM) {
-        mutableStateOf(parsedM)
+        mutableIntStateOf(parsedM)
     }
     var isAm by remember(parsedH) {
         mutableStateOf(parsedH < 12)
@@ -1061,6 +1046,7 @@ private fun MedicationRemindersDialog(
 
                 // Test Notification & Reschedule actions
                 item {
+                    val testSuccessMsg = stringResource(id = R.string.meds_reminders_test_success)
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedButton(
                         onClick = {
@@ -1068,7 +1054,7 @@ private fun MedicationRemindersDialog(
                                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             } else {
                                 onSendTestNotification()
-                                Toast.makeText(context, context.getString(R.string.meds_reminders_test_success), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, testSuccessMsg, Toast.LENGTH_SHORT).show()
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -1080,10 +1066,11 @@ private fun MedicationRemindersDialog(
                 }
 
                 item {
+                    val syncSuccessMsg = stringResource(id = R.string.meds_reminders_sync_success)
                     OutlinedButton(
                         onClick = {
                             onRescheduleAll()
-                            Toast.makeText(context, context.getString(R.string.meds_reminders_sync_success), Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, syncSuccessMsg, Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {

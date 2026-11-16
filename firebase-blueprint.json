@@ -1,0 +1,397 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Authenticated AbhayHealth account root metadata.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID owning this account."
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified Google account email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Account display name."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of account creation (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["userId", "createdAt", "updatedAt"]
+    },
+    "PatientProfile": {
+      "title": "PatientProfile",
+      "description": "Private baseline clinical identity for the authenticated patient.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Patient full name."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "Date of birth."
+        },
+        "gender": {
+          "type": "string",
+          "description": "Gender identity."
+        },
+        "city": {
+          "type": "string",
+          "description": "Patient city."
+        },
+        "state": {
+          "type": "string",
+          "description": "Patient state."
+        },
+        "preferredLanguage": {
+          "type": "string",
+          "description": "Preferred UI and AI language."
+        },
+        "photoUri": {
+          "type": "string",
+          "description": "Optional profile photo reference."
+        },
+        "bloodGroup": {
+          "type": "string",
+          "description": "Patient blood group."
+        },
+        "allergies": {
+          "type": "string",
+          "description": "Known medication or environmental allergies."
+        },
+        "healthConditions": {
+          "type": "string",
+          "description": "Known pre-existing clinical conditions."
+        },
+        "emergencyContactName": {
+          "type": "string",
+          "description": "Emergency contact person name."
+        },
+        "emergencyContactPhone": {
+          "type": "string",
+          "description": "Emergency contact telephone number."
+        },
+        "additionalNotes": {
+          "type": "string",
+          "description": "Patient-provided notes."
+        },
+        "updatedAtTimestamp": {
+          "type": "integer",
+          "description": "Epoch millis when profile was edited."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["userId", "fullName", "preferredLanguage", "updatedAtTimestamp", "createdAt", "updatedAt"]
+    },
+    "MedicalRecordDoc": {
+      "title": "MedicalRecordDoc",
+      "description": "Cloud-synced medical record metadata and extracted structured lab/prescription results.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "localRecordId": {
+          "type": "integer",
+          "description": "Local Room primary key identifier."
+        },
+        "title": {
+          "type": "string",
+          "description": "Record display title."
+        },
+        "category": {
+          "type": "string",
+          "description": "Medical document category."
+        },
+        "recordDate": {
+          "type": "integer",
+          "description": "Epoch millis date of the medical record."
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "MIME type of source file."
+        },
+        "createdAtTimestamp": {
+          "type": "integer",
+          "description": "Epoch millis when record was created."
+        },
+        "documentTitle": {
+          "type": "string",
+          "description": "Extracted or reviewed document title."
+        },
+        "reportDate": {
+          "type": "string",
+          "description": "Human-readable extracted report date."
+        },
+        "rawText": {
+          "type": "string",
+          "description": "Extracted OCR or PDF text."
+        },
+        "structuredResultsJson": {
+          "type": "string",
+          "description": "Serialized list of ParsedMedicalResult biomarkers."
+        },
+        "reviewStatus": {
+          "type": "string",
+          "enum": ["UNREVIEWED", "REVIEWED_AND_SAVED", "EDITED"],
+          "description": "Verification status of extracted fields."
+        },
+        "processedPages": {
+          "type": "integer",
+          "description": "Number of document pages processed."
+        },
+        "updatedAtTimestamp": {
+          "type": "integer",
+          "description": "Epoch millis when extracted info was updated."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "localRecordId",
+        "title",
+        "category",
+        "recordDate",
+        "createdAtTimestamp",
+        "reviewStatus",
+        "processedPages",
+        "updatedAtTimestamp",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MedicationDoc": {
+      "title": "MedicationDoc",
+      "description": "Cloud-synced daily prescription medication schedule and adherence state.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Medication name."
+        },
+        "dosage": {
+          "type": "string",
+          "description": "Dosage and administration notes."
+        },
+        "timeSlot": {
+          "type": "string",
+          "description": "Daily reminder time slot."
+        },
+        "isTaken": {
+          "type": "boolean",
+          "description": "Whether the current dose is marked taken."
+        },
+        "createdAtTimestamp": {
+          "type": "integer",
+          "description": "Epoch millis when medication was added."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["userId", "name", "dosage", "timeSlot", "isTaken", "createdAtTimestamp", "createdAt", "updatedAt"]
+    },
+    "VitalReadingDoc": {
+      "title": "VitalReadingDoc",
+      "description": "Cloud-synced patient vital reading (Blood Pressure or Weight).",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "localVitalId": {
+          "type": "integer",
+          "description": "Local Room identifier for this reading."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["BLOOD_PRESSURE", "WEIGHT"],
+          "description": "Vital reading measurement type."
+        },
+        "systolic": {
+          "type": "number",
+          "description": "Systolic BP in mmHg."
+        },
+        "diastolic": {
+          "type": "number",
+          "description": "Diastolic BP in mmHg."
+        },
+        "weightKg": {
+          "type": "number",
+          "description": "Body weight in kilograms."
+        },
+        "timestamp": {
+          "type": "integer",
+          "description": "Measurement epoch millis."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional context notes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["userId", "localVitalId", "type", "timestamp", "notes", "createdAt", "updatedAt"]
+    },
+    "SymptomLogDoc": {
+      "title": "SymptomLogDoc",
+      "description": "Cloud-synced longitudinal symptom log entry.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "localSymptomId": {
+          "type": "integer",
+          "description": "Local Room identifier for this symptom log."
+        },
+        "symptomName": {
+          "type": "string",
+          "description": "Symptom title."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["MILD", "MODERATE", "SEVERE", "CRITICAL"],
+          "description": "Symptom severity level."
+        },
+        "severityScore": {
+          "type": "integer",
+          "description": "Numeric severity score 1..4."
+        },
+        "timestamp": {
+          "type": "integer",
+          "description": "Epoch millis when symptom occurred."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Symptom observations."
+        },
+        "triggers": {
+          "type": "string",
+          "description": "Possible triggers."
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "description": "Duration in minutes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "localSymptomId",
+        "symptomName",
+        "severity",
+        "severityScore",
+        "timestamp",
+        "notes",
+        "triggers",
+        "durationMinutes",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserAccount"
+      },
+      "description": "User account root document isolated per Firebase Auth UID."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": {
+        "$ref": "#/entities/PatientProfile"
+      },
+      "description": "Private PII patient clinical identity stored under document 'profile'."
+    },
+    "/users/{userId}/records/{recordId}": {
+      "schema": {
+        "$ref": "#/entities/MedicalRecordDoc"
+      },
+      "description": "Per-user medical records and extracted diagnostic biomarkers."
+    },
+    "/users/{userId}/medications/{medicationId}": {
+      "schema": {
+        "$ref": "#/entities/MedicationDoc"
+      },
+      "description": "Per-user daily prescription medications and adherence flags."
+    },
+    "/users/{userId}/vitals/{vitalId}": {
+      "schema": {
+        "$ref": "#/entities/VitalReadingDoc"
+      },
+      "description": "Per-user vital measurements (Blood Pressure and Weight)."
+    },
+    "/users/{userId}/symptoms/{symptomId}": {
+      "schema": {
+        "$ref": "#/entities/SymptomLogDoc"
+      },
+      "description": "Per-user symptom log entries."
+    }
+  }
+}

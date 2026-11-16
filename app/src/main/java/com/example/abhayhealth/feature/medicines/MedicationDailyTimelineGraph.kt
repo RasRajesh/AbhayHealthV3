@@ -642,5 +642,5 @@ private fun formatTimeDec(hourDecimal: Float): String {
     val m = ((hourDecimal - h) * 60).toInt()
     val amPm = if (h >= 12) "PM" else "AM"
     val displayH = if (h % 12 == 0) 12 else h % 12
-    return String.format("%02d:%02d %s", displayH, m, amPm)
+    return String.format(java.util.Locale.US, "%02d:%02d %s", displayH, m, amPm)
 }

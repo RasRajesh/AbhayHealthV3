@@ -1,9 +1,11 @@
 package com.example.abhayhealth.domain.model
 
 /**
- * Domain model representing an authenticated user account.
+ * Domain model representing an authenticated Firebase user account.
  */
 data class AuthUser(
     val uid: String,
-    val phoneNumber: String?
+    val phoneNumber: String? = null,
+    val email: String? = null,
+    val displayName: String? = null
 )

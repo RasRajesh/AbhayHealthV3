@@ -22,20 +22,18 @@ object MedicationNotificationHelper {
     private const val CHANNEL_DESC = "Timely alerts reminding you to take your prescribed medicines"
 
     fun createNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val importance = NotificationManager.IMPORTANCE_HIGH
-            val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
-                description = CHANNEL_DESC
-                enableLights(true)
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 450, 200, 450)
-                setSound(soundUri, null)
-                setShowBadge(true)
-            }
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            notificationManager?.createNotificationChannel(channel)
+        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val importance = NotificationManager.IMPORTANCE_HIGH
+        val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
+            description = CHANNEL_DESC
+            enableLights(true)
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 450, 200, 450)
+            setSound(soundUri, null)
+            setShowBadge(true)
         }
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.createNotificationChannel(channel)
     }
 
     fun showMedicationNotification(

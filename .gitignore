@@ -23,3 +23,5 @@ mapping.txt
 .aistudio/
 public/
 .env
+*-debug.log
+
